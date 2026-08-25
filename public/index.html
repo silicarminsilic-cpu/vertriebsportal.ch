@@ -946,18 +946,18 @@
       <form id="login-form">
         <div class="field">
           <label>E-Mail</label>
-          <input type="email" id="login-email" placeholder="name@beispiel.ch" value="max@mustermann-beratung.ch">
+          <input type="email" id="login-email" placeholder="name@beispiel.ch">
         </div>
         <div class="field">
           <label>Passwort</label>
           <div class="field-pass">
-            <input type="password" id="login-pass" placeholder="••••••••••" value="vertriebsportal2026">
+            <input type="password" id="login-pass" placeholder="••••••••••">
             <button type="button" id="toggle-pass">Zeigen</button>
           </div>
         </div>
         <div class="row-between">
           <label class="checkbox-row"><input type="checkbox" id="login-remember" checked> Angemeldet bleiben</label>
-          <button type="button" class="link-btn">Passwort vergessen?</button>
+          <button type="button" class="link-btn" id="forgot-pass-btn">Passwort vergessen?</button>
         </div>
         <button type="submit" class="btn-primary">Einloggen</button>
       </form>
@@ -1117,10 +1117,11 @@ const STATUS_STYLE = {
   "In Bearbeitung":"tag-amber",
   "Briefing erhalten":"tag-violet",
   "Angebot erstellt":"tag-violet",
+  "Offerte & Rechnung gesendet":"tag-violet",
   "Abgeschlossen":"tag-green"
 };
 const STATUS_PROGRESS = {
-  "In Umsetzung":60,"In Bearbeitung":30,"Briefing erhalten":10,"Angebot erstellt":20,"Abgeschlossen":100
+  "In Umsetzung":60,"In Bearbeitung":30,"Briefing erhalten":10,"Angebot erstellt":20,"Offerte & Rechnung gesendet":15,"Abgeschlossen":100
 };
 const BRANCHE_CODE = {"Versicherungen":"VS","Finanzen & Bank":"FB","Immobilien":"IM","Edelmetalle":"EM","Krypto":"KR","Sonstige":"SO"};
 
@@ -1144,14 +1145,6 @@ const BRANCHEN = [
   {id:"Edelmetalle", code:"EM", sub:"Gold, Silber, Anlagen"},
   {id:"Krypto", code:"KR", sub:"Bitcoin, Trading, Investments"},
   {id:"Sonstige", code:"SO", sub:"Andere Themen"},
-];
-
-const DEFAULT_ORDERS = [
-  {id:1, name:"Krankenkasse Kampagne", typkunde:"Privatkunden", branche:"Versicherungen", status:"In Umsetzung", createdAt:"14.05.2024"},
-  {id:2, name:"Hypotheken Leads", typkunde:"Privatkunden", branche:"Finanzen & Bank", status:"In Bearbeitung", createdAt:"10.05.2024"},
-  {id:3, name:"Immobilien Bewertung", typkunde:"Privatkunden", branche:"Immobilien", status:"Briefing erhalten", createdAt:"08.05.2024"},
-  {id:4, name:"Gold Investment Kampagne", typkunde:"Investoren", branche:"Edelmetalle", status:"Abgeschlossen", createdAt:"01.05.2024"},
-  {id:5, name:"Krypto Trading Leads", typkunde:"Unternehmer", branche:"Krypto", status:"Angebot erstellt", createdAt:"26.04.2024"},
 ];
 
 /* =====================================================================
@@ -1263,21 +1256,32 @@ let userProfile = { name:'Max Mustermann', email:'max@mustermann-beratung.ch', c
 /* =====================================================================
    STORAGE HELPERS
 ===================================================================== */
+function apiOrderToLocal(o){
+  const created = new Date(o.createdAt);
+  return {
+    id: o.id,
+    name: o.title,
+    typkunde: o.typkunde || '—',
+    branche: o.branche || o.category,
+    status: o.status,
+    createdAt: String(created.getDate()).padStart(2,'0')+'.'+String(created.getMonth()+1).padStart(2,'0')+'.'+created.getFullYear(),
+    offerNumber: o.offerNumber,
+    invoiceNumber: o.invoiceNumber,
+    total: o.total,
+    quantity: o.quantity,
+    emailSent: o.emailSent
+  };
+}
 async function loadOrders(){
   try{
-    const res = await window.storage.get('vertriebsportal:orders', false);
-    if(res && res.value){
-      orders = JSON.parse(res.value);
-      return;
-    }
-  }catch(e){ /* key not found or storage unavailable */ }
-  orders = DEFAULT_ORDERS.slice();
-  saveOrders();
+    const { orders: apiOrders } = await api('/orders');
+    orders = apiOrders.map(apiOrderToLocal);
+  }catch(e){ console.warn('Aufträge konnten nicht geladen werden', e); orders = []; }
 }
-async function saveOrders(){
-  try{
-    await window.storage.set('vertriebsportal:orders', JSON.stringify(orders), false);
-  }catch(e){ console.warn('Speichern fehlgeschlagen', e); }
+async function createOrder(payload){
+  const { order, emailSent } = await api('/orders', {method:'POST', body:payload});
+  await loadOrders();
+  return { order, emailSent };
 }
 
 async function loadWallet(){
@@ -1345,16 +1349,13 @@ async function savePipeline(){
   catch(e){ console.warn('Speichern fehlgeschlagen', e); }
 }
 
-async function loadUserProfile(){
-  try{
-    const res = await window.storage.get('vertriebsportal:profile', false);
-    if(res && res.value){ userProfile = JSON.parse(res.value); return; }
-  }catch(e){}
-  saveUserProfile();
-}
 async function saveUserProfile(){
-  try{ await window.storage.set('vertriebsportal:profile', JSON.stringify(userProfile), false); }
-  catch(e){ console.warn('Speichern fehlgeschlagen', e); }
+  try{
+    const { user } = await api('/auth/me', {method:'PATCH', body:{
+      name: userProfile.name, company: userProfile.company, branche: userProfile.branche, typkunde: userProfile.typkunde
+    }});
+    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde };
+  }catch(e){ console.warn('Profil konnte nicht gespeichert werden', e); }
 }
 
 /* =====================================================================
@@ -1403,32 +1404,6 @@ async function logAdminTransaction(desc, amount){
     desc, amount
   });
   saveAdminTransactions();
-}
-
-async function registerUser(data){
-  try{
-    const res = await window.storage.get('vertriebsportal:admin:users', true);
-    adminUsers = (res && res.value) ? JSON.parse(res.value) : [];
-  }catch(e){ adminUsers = adminUsers || []; }
-  adminUsers.unshift({
-    id: Date.now(),
-    name: data.name,
-    email: data.email,
-    company: data.company,
-    branche: '',
-    typkunde: '',
-    registeredAt: todayStr()
-  });
-  await saveAdminUsers();
-
-  userProfile = { name:data.name, email:data.email, company:data.company, branche:'', typkunde:'' };
-  orders = [];
-  wallet = { balance:0, history:[] };
-  leadPurchases = [];
-  bookedServices = [];
-  appointments = [];
-  pipelineLeads = [];
-  await Promise.all([saveUserProfile(), saveOrders(), saveWallet(), saveLeadPurchases(), saveBookedServices(), saveAppointments(), savePipeline()]);
 }
 
 function addWalletTx(desc, amount){
@@ -1489,6 +1464,9 @@ document.getElementById('toggle-pass').addEventListener('click', function(){
   inp.type = isPw ? 'text' : 'password';
   this.textContent = isPw ? 'Verbergen' : 'Zeigen';
 });
+document.getElementById('forgot-pass-btn').addEventListener('click', ()=>{
+  showToast('Bitte wende dich für eine Passwort-Zurücksetzung an unseren Support.');
+});
 document.getElementById('go-register').addEventListener('click', ()=>{
   document.getElementById('login-card').classList.add('hidden');
   document.getElementById('register-card').classList.remove('hidden');
@@ -1498,21 +1476,51 @@ document.getElementById('go-login').addEventListener('click', ()=>{
   document.getElementById('login-card').classList.remove('hidden');
 });
 
+async function api(path, opts){
+  opts = opts || {};
+  const res = await fetch('/api'+path, {
+    method: opts.method || 'GET',
+    headers: opts.body ? {'Content-Type':'application/json'} : undefined,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+    credentials: 'same-origin'
+  });
+  let data = null;
+  try{ data = await res.json(); }catch(e){ data = null; }
+  if(!res.ok){
+    const err = new Error((data && data.error) || 'Unbekannter Fehler');
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+async function enterApp(){
+  await Promise.all([loadOrders(), loadWallet(), loadLeadPurchases(), loadBookedServices(), loadAppointments(), loadPipeline()]);
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('show');
+  updateSidebarUser();
+  navigate('dashboard');
+}
+
 document.getElementById('login-form').addEventListener('submit', async function(e){
   e.preventDefault();
   const email = document.getElementById('login-email').value.trim();
   const pass = document.getElementById('login-pass').value.trim();
   const err = document.getElementById('login-err');
   if(!email || !pass){
+    err.textContent = 'Bitte E-Mail und Passwort eingeben.';
     err.style.display = 'block';
     return;
   }
   err.style.display = 'none';
-  await Promise.all([loadOrders(), loadWallet(), loadLeadPurchases(), loadBookedServices(), loadAppointments(), loadPipeline(), loadUserProfile()]);
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').classList.add('show');
-  updateSidebarUser();
-  navigate('dashboard');
+  try{
+    const { user } = await api('/auth/login', {method:'POST', body:{email, password:pass}});
+    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde };
+    await enterApp();
+  }catch(ex){
+    err.textContent = ex.message;
+    err.style.display = 'block';
+  }
 });
 
 document.getElementById('register-form').addEventListener('submit', async function(e){
@@ -1533,21 +1541,33 @@ document.getElementById('register-form').addEventListener('submit', async functi
     err.style.display = 'block';
     return;
   }
+  if(pass.length < 8){
+    err.textContent = 'Das Passwort muss mindestens 8 Zeichen lang sein.';
+    err.style.display = 'block';
+    return;
+  }
   err.style.display = 'none';
-  await registerUser({name, company, email});
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').classList.add('show');
-  updateSidebarUser();
-  navigate('dashboard');
-  showToast(`Willkommen, ${name}! Dein Konto wurde erstellt.`);
+  try{
+    const { user } = await api('/auth/register', {method:'POST', body:{name, company, email, password:pass}});
+    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde };
+    orders = []; wallet = JSON.parse(JSON.stringify(DEFAULT_WALLET)); leadPurchases = []; bookedServices = []; appointments = DEFAULT_APPOINTMENTS.slice(); pipelineLeads = JSON.parse(JSON.stringify(DEFAULT_PIPELINE));
+    await enterApp();
+    showToast(`Willkommen, ${name}! Dein Konto wurde erstellt.`);
+  }catch(ex){
+    err.textContent = ex.message;
+    err.style.display = 'block';
+  }
 });
 
-document.getElementById('logout-btn').addEventListener('click', ()=>{
+document.getElementById('logout-btn').addEventListener('click', async ()=>{
+  try{ await api('/auth/logout', {method:'POST'}); }catch(e){}
   document.getElementById('app').classList.remove('show');
   document.getElementById('login-screen').style.display = 'grid';
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('register-card').classList.add('hidden');
   document.getElementById('login-card').classList.remove('hidden');
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-pass').value = '';
 });
 
 document.getElementById('hamburger').addEventListener('click', ()=>{
@@ -2225,72 +2245,67 @@ function validateStep(){
 }
 
 async function submitOrder(){
-  const today = new Date();
-  const dateStr = String(today.getDate()).padStart(2,'0')+'.'+String(today.getMonth()+1).padStart(2,'0')+'.'+today.getFullYear();
-  const name = `${wizardData.branche} Kampagne`;
-  const newOrder = {
-    id: Date.now(),
-    name,
-    typkunde: wizardData.typkunde,
-    branche: wizardData.branche,
-    status: "In Bearbeitung",
-    createdAt: dateStr
-  };
-  orders.unshift(newOrder);
-  await saveOrders();
-  showToast('Auftrag erfolgreich abgesendet');
-  navigate('meine-auftraege');
+  const wizNext = document.getElementById('wiz-next');
+  if(wizNext){ wizNext.disabled = true; wizNext.textContent = 'Wird gesendet…'; }
+  try{
+    await createOrder({ category:'individuell', ...wizardData });
+    showToast(`Angebot & Rechnung wurden an ${userProfile.email} gesendet`);
+    navigate('meine-auftraege');
+  }catch(ex){
+    showToast(ex.message || 'Auftrag konnte nicht gesendet werden.');
+  }finally{
+    if(wizNext){ wizNext.disabled = false; wizNext.textContent = 'Auftrag absenden'; }
+  }
 }
 
 /* =====================================================================
    MARKTPLATZ — KAUF- & BUCHUNGSAKTIONEN
 ===================================================================== */
-function buyLead(productId){
+async function buyLead(productId){
   const p = LEAD_PRODUCTS.find(x=>x.id===productId);
   if(!p) return;
   const qtyInput = document.getElementById('qty-'+productId);
   const qty = parseInt(qtyInput ? qtyInput.value : p.minQty, 10);
   if(isNaN(qty) || qty < p.minQty){ showToast(`Mindestbestellmenge: ${p.minQty} Leads`); return; }
-  const total = qty * p.price;
-  if(total > wallet.balance){ showToast('Nicht genügend Guthaben – bitte Budget aufladen.'); return; }
-  addWalletTx(`Kauf: ${p.name} (${qty}x)`, -total);
-  leadPurchases.unshift({id:Date.now(), date:todayStr(), productName:p.name, qty, total});
-  saveLeadPurchases();
-  showToast(`${qty}x ${p.name} erfolgreich gekauft`);
-  render();
+  try{
+    await createOrder({category:'lead', productId, quantity:qty});
+    leadPurchases.unshift({id:Date.now(), date:todayStr(), productName:p.name, qty, total:qty*p.price});
+    saveLeadPurchases();
+    showToast(`Offerte & Rechnung für ${qty}x ${p.name} wurden an ${userProfile.email} gesendet`);
+    render();
+  }catch(ex){ showToast(ex.message || 'Bestellung fehlgeschlagen.'); }
 }
 
-function buyCampaign(productId){
+async function buyCampaign(productId){
   const p = CAMPAIGN_PRODUCTS.find(x=>x.id===productId);
   if(!p) return;
-  if(p.price > wallet.balance){ showToast('Nicht genügend Guthaben – bitte Budget aufladen.'); return; }
-  addWalletTx(`Kauf: ${p.name}`, -p.price);
-  orders.unshift({id:Date.now(), name:p.name, typkunde:'—', branche:'Kampagnen-Paket', status:'Briefing erhalten', createdAt:todayStr()});
-  saveOrders();
-  showToast(`${p.name} gebucht – wir melden uns in Kürze`);
-  render();
+  try{
+    await createOrder({category:'kampagne', productId, quantity:1});
+    showToast(`Offerte & Rechnung für ${p.name} wurden an ${userProfile.email} gesendet`);
+    render();
+  }catch(ex){ showToast(ex.message || 'Bestellung fehlgeschlagen.'); }
 }
 
-function buyLandingpage(productId){
+async function buyLandingpage(productId){
   const p = LANDINGPAGE_PRODUCTS.find(x=>x.id===productId);
   if(!p) return;
-  if(p.price > wallet.balance){ showToast('Nicht genügend Guthaben – bitte Budget aufladen.'); return; }
-  addWalletTx(`Kauf: ${p.name}`, -p.price);
-  orders.unshift({id:Date.now(), name:p.name, typkunde:'—', branche:p.branche, status:'Briefing erhalten', createdAt:todayStr()});
-  saveOrders();
-  showToast(`${p.name} gekauft – wir richten sie für dich ein`);
-  render();
+  try{
+    await createOrder({category:'landingpage', productId, quantity:1});
+    showToast(`Offerte & Rechnung für ${p.name} wurden an ${userProfile.email} gesendet`);
+    render();
+  }catch(ex){ showToast(ex.message || 'Bestellung fehlgeschlagen.'); }
 }
 
-function bookService(serviceId){
+async function bookService(serviceId){
   const s = SERVICES.find(x=>x.id===serviceId);
   if(!s) return;
-  if(s.price > wallet.balance){ showToast('Nicht genügend Guthaben – bitte Budget aufladen.'); return; }
-  addWalletTx(`Buchung: ${s.name}`, -s.price);
-  bookedServices.unshift({id:Date.now(), date:todayStr(), serviceName:s.name, price:s.price});
-  saveBookedServices();
-  showToast(`${s.name} erfolgreich gebucht`);
-  render();
+  try{
+    await createOrder({category:'service', productId:serviceId, quantity:1});
+    bookedServices.unshift({id:Date.now(), date:todayStr(), serviceName:s.name, price:s.price});
+    saveBookedServices();
+    showToast(`Offerte & Rechnung für ${s.name} wurden an ${userProfile.email} gesendet`);
+    render();
+  }catch(ex){ showToast(ex.message || 'Buchung fehlgeschlagen.'); }
 }
 
 function useTemplate(typkunde, branche){
@@ -2680,27 +2695,32 @@ function renderTermine(){
 }
 
 function renderRechnungen(){
-  const debits = wallet.history.filter(h=>h.amount<0);
-  if(!debits.length){
+  if(!orders.length){
     return `<div class="placeholder">
       <div class="pic">${icSvg('receipt',26)}</div>
       <h3>Noch keine Rechnungen</h3>
-      <p>Sobald eine Kampagne, ein Lead-Kauf oder eine Leistung abgerechnet wird, erscheint hier deine Rechnung.</p>
-      <button class="btn btn-outline" data-nav="dashboard">Zurück zum Dashboard</button>
+      <p>Sobald du eine Dienstleistung bestellst, erhältst du die Offerte und Rechnung per E-Mail und findest sie hier zum Download.</p>
+      <button class="btn btn-outline" data-nav="neuer-auftrag">Jetzt Dienstleistung auswählen</button>
     </div>`;
   }
   return `<div class="table-wrap">
     <table>
-      <thead><tr><th>Rechnungs-Nr.</th><th>Beschreibung</th><th>Betrag</th><th>Datum</th><th>Status</th></tr></thead>
-      <tbody>${debits.map((h,i)=>`<tr>
-        <td class="mono-cell">RE-${String(debits.length-i).padStart(4,'0')}</td>
-        <td class="name-cell">${escapeHtml(h.desc)}</td>
-        <td class="mono-cell">CHF ${fmtMoney(Math.abs(h.amount))}</td>
-        <td class="mono-cell">${h.date}</td>
-        <td><span class="tag tag-green"><span class="tdot"></span>Bezahlt</span></td>
+      <thead><tr><th>Rechnungs-Nr.</th><th>Beschreibung</th><th>Betrag</th><th>Datum</th><th>Status</th><th>Dokumente</th></tr></thead>
+      <tbody>${orders.map(o=>`<tr>
+        <td class="mono-cell">${escapeHtml(o.invoiceNumber||'—')}</td>
+        <td class="name-cell">${escapeHtml(o.name)}</td>
+        <td class="mono-cell">CHF ${fmtMoney(o.total||0)}</td>
+        <td class="mono-cell">${o.createdAt}</td>
+        <td>${o.emailSent
+            ? `<span class="tag tag-green"><span class="tdot"></span>Per E-Mail versendet</span>`
+            : `<span class="tag tag-amber"><span class="tdot"></span>Versand fehlgeschlagen</span>`}</td>
+        <td>
+          <a href="/api/orders/${o.id}/offer.pdf" target="_blank" rel="noopener" style="color:var(--accent-dark);font-weight:600;margin-right:12px;">Offerte</a>
+          <a href="/api/orders/${o.id}/invoice.pdf" target="_blank" rel="noopener" style="color:var(--accent-dark);font-weight:600;">Rechnung</a>
+        </td>
       </tr>`).join('')}</tbody>
     </table>
-    <div class="table-foot">1–${debits.length} von ${debits.length} Einträgen</div>
+    <div class="table-foot">1–${orders.length} von ${orders.length} Einträgen</div>
   </div>`;
 }
 function renderProfil(){
@@ -2710,7 +2730,7 @@ function renderProfil(){
       <div><div style="font-weight:600;font-size:15px;">${escapeHtml(userProfile.name)}</div><div style="color:var(--gray-500);font-size:13px;">Berater · ${escapeHtml(userProfile.company)}</div></div>
     </div>
     <div class="field"><label>Name</label><input id="profile-name" value="${escapeAttr(userProfile.name)}"></div>
-    <div class="field"><label>E-Mail</label><input id="profile-email" value="${escapeAttr(userProfile.email)}"></div>
+    <div class="field"><label>E-Mail (Login, nicht änderbar)</label><input id="profile-email" value="${escapeAttr(userProfile.email)}" disabled style="background:var(--gray-50);color:var(--gray-500);"></div>
     <div class="field"><label>Unternehmen</label><input id="profile-company" value="${escapeAttr(userProfile.company)}"></div>
     <div class="section-label" style="margin-top:22px;">Vertriebsprofil</div>
     <p style="color:var(--gray-500);font-size:12.5px;margin:-4px 0 14px;">Bestimmt, welche Leads, Kampagnen und Vorlagen dir im Dashboard empfohlen werden.</p>
@@ -2956,6 +2976,14 @@ function escapeHtml(str){
 function escapeAttr(str){ return escapeHtml(str); }
 
 mountStaticIcons();
+
+(async function tryResumeSession(){
+  try{
+    const { user } = await api('/auth/me');
+    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde };
+    await enterApp();
+  }catch(e){ /* keine gültige Sitzung – Login-Screen bleibt sichtbar */ }
+})();
 </script>
 </body>
 </html>
