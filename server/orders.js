@@ -161,7 +161,6 @@ router.post('/', async (req, res, next) => {
 
       await sendMail({
         to: req.user.email,
-        bcc: process.env.COMPANY_NOTIFY_EMAIL || undefined,
         subject: `Deine Offerte & Rechnung – ${offerNumber} / ${invoiceNumber}`,
         text:
           `Hallo ${req.user.name}\n\nVielen Dank für deine Bestellung über vertriebsportal.ch:\n${itemLines}\n\n` +
@@ -180,6 +179,26 @@ router.post('/', async (req, res, next) => {
         ],
       });
       emailSent = true;
+
+      if (process.env.COMPANY_NOTIFY_EMAIL) {
+        try {
+          await sendMail({
+            to: process.env.COMPANY_NOTIFY_EMAIL,
+            subject: `Neue Bestellung – ${offerNumber} / ${invoiceNumber}`,
+            text:
+              `Neue Bestellung über vertriebsportal.ch:\n\n` +
+              `Kunde: ${req.user.name} (${req.user.company})\nE-Mail: ${req.user.email}\n\n` +
+              `Positionen:\n${itemLines}\n\nTotal: CHF ${Number(order.subtotal).toFixed(2)} zzgl. MWST`,
+            html:
+              `<p>Neue Bestellung über vertriebsportal.ch:</p>` +
+              `<p>Kunde: ${escapeHtml(req.user.name)} (${escapeHtml(req.user.company)})<br>E-Mail: ${escapeHtml(req.user.email)}</p>` +
+              `<p>Positionen:</p><ul>${itemLinesHtml}</ul>` +
+              `<p>Total: CHF ${Number(order.subtotal).toFixed(2)} zzgl. MWST</p>`,
+          });
+        } catch (err) {
+          console.error('[orders] Interne Bestell-Benachrichtigung fehlgeschlagen:', err.message);
+        }
+      }
     } catch (err) {
       console.error('[orders] E-Mail-Versand fehlgeschlagen:', err.message);
     }
