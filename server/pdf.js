@@ -45,10 +45,15 @@ function drawHeader(doc, kind, docNumber, docDate, user) {
   doc.fontSize(9).fillColor('#96a4b2').text('Kunde', 50, addrY);
   doc.fontSize(10.5).fillColor('#0f1c30').font('Helvetica-Bold').text(user.name, 50, addrY + 13);
   doc.font('Helvetica').fillColor('#33404d');
-  doc.text(user.company || '', 50, addrY + 28);
-  doc.text(user.email, 50, addrY + 42);
+  let ay = addrY + 28;
+  if (user.company) { doc.text(user.company, 50, ay); ay += 13; }
+  if (user.street) { doc.text(user.street, 50, ay); ay += 13; }
+  if (user.zip || user.city) { doc.text(`${user.zip || ''} ${user.city || ''}`.trim(), 50, ay); ay += 13; }
+  if (user.country) { doc.text(user.country, 50, ay); ay += 13; }
+  doc.text(user.email, 50, ay); ay += 13;
+  if (user.phone) { doc.text(user.phone, 50, ay); ay += 13; }
 
-  return addrY + 70;
+  return Math.max(ay + 15, addrY + 70);
 }
 
 function ensureSpace(doc, y, needed) {

@@ -40,8 +40,18 @@ function ensureSchema() {
         password_hash TEXT NOT NULL,
         branche TEXT DEFAULT '',
         typkunde TEXT DEFAULT '',
+        street TEXT DEFAULT '',
+        zip TEXT DEFAULT '',
+        city TEXT DEFAULT '',
+        country TEXT DEFAULT '',
+        phone TEXT DEFAULT '',
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS street TEXT DEFAULT '';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS zip TEXT DEFAULT '';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS city TEXT DEFAULT '';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS country TEXT DEFAULT '';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT '';
 
       CREATE TABLE IF NOT EXISTS orders (
         id SERIAL PRIMARY KEY,
@@ -52,8 +62,18 @@ function ensureSchema() {
         subtotal NUMERIC(10,2) NOT NULL DEFAULT 0,
         currency TEXT NOT NULL DEFAULT 'CHF',
         email_sent BOOLEAN NOT NULL DEFAULT false,
+        billing_street TEXT NOT NULL DEFAULT '',
+        billing_zip TEXT NOT NULL DEFAULT '',
+        billing_city TEXT NOT NULL DEFAULT '',
+        billing_country TEXT NOT NULL DEFAULT '',
+        billing_phone TEXT NOT NULL DEFAULT '',
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS billing_street TEXT NOT NULL DEFAULT '';
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS billing_zip TEXT NOT NULL DEFAULT '';
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS billing_city TEXT NOT NULL DEFAULT '';
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS billing_country TEXT NOT NULL DEFAULT '';
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS billing_phone TEXT NOT NULL DEFAULT '';
 
       CREATE TABLE IF NOT EXISTS order_items (
         id SERIAL PRIMARY KEY,
