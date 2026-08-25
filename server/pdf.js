@@ -1,9 +1,9 @@
 const PDFDocument = require('pdfkit');
 
 const COMPANY = {
-  name: process.env.COMPANY_NAME || 'vertriebsportal.ch',
-  addressLine1: process.env.COMPANY_ADDRESS_LINE1 || '',
-  addressLine2: process.env.COMPANY_ADDRESS_LINE2 || '',
+  name: process.env.COMPANY_NAME || 'Esche Consulting GmbH',
+  addressLine1: process.env.COMPANY_ADDRESS_LINE1 || 'Städtle 35',
+  addressLine2: process.env.COMPANY_ADDRESS_LINE2 || '9490 Vaduz, Fürstentum Liechtenstein',
   email: process.env.COMPANY_EMAIL || 'support@vertriebsportal.ch',
   phone: process.env.COMPANY_PHONE || '',
   uid: process.env.COMPANY_UID || '',
@@ -51,34 +51,46 @@ function drawHeader(doc, kind, docNumber, docDate, user) {
   return addrY + 70;
 }
 
+function ensureSpace(doc, y, needed) {
+  if (y + needed > 760) {
+    doc.addPage();
+    return 50;
+  }
+  return y;
+}
+
 function drawItemsTable(doc, startY, order) {
-  const tableTop = startY + 10;
   const colPos = { desc: 50, qty: 340, unit: 400, total: 470 };
+  let y = startY + 10;
 
-  doc.rect(50, tableTop, 495, 22).fill('#eef1f5');
+  doc.rect(50, y, 495, 22).fill('#eef1f5');
   doc.fillColor('#33404d').fontSize(9).font('Helvetica-Bold');
-  doc.text('Beschreibung', colPos.desc + 8, tableTop + 6);
-  doc.text('Menge', colPos.qty, tableTop + 6, { width: 50, align: 'right' });
-  doc.text('Einzelpreis', colPos.unit, tableTop + 6, { width: 60, align: 'right' });
-  doc.text('Total', colPos.total, tableTop + 6, { width: 65, align: 'right' });
+  doc.text('Beschreibung', colPos.desc + 8, y + 6);
+  doc.text('Menge', colPos.qty, y + 6, { width: 50, align: 'right' });
+  doc.text('Einzelpreis', colPos.unit, y + 6, { width: 60, align: 'right' });
+  doc.text('Total', colPos.total, y + 6, { width: 65, align: 'right' });
+  y += 30;
 
-  let y = tableTop + 30;
-  doc.font('Helvetica').fontSize(10).fillColor('#0f1c30');
-  doc.text(order.title, colPos.desc, y, { width: 280 });
-  doc.text(String(order.quantity), colPos.qty, y, { width: 50, align: 'right' });
-  doc.text(`CHF ${fmtMoney(order.unit_price)}`, colPos.unit, y, { width: 60, align: 'right' });
-  doc.text(`CHF ${fmtMoney(order.total)}`, colPos.total, y, { width: 65, align: 'right' });
-  y += 18;
-  if (order.description) {
-    doc.fontSize(8.5).fillColor('#6c7d8d').text(order.description, colPos.desc, y, { width: 420 });
-    y += doc.heightOfString(order.description, { width: 420 }) + 6;
+  for (const item of order.items) {
+    y = ensureSpace(doc, y, 40);
+    doc.font('Helvetica').fontSize(10).fillColor('#0f1c30');
+    doc.text(item.title, colPos.desc, y, { width: 280 });
+    doc.text(String(item.quantity), colPos.qty, y, { width: 50, align: 'right' });
+    doc.text(`CHF ${fmtMoney(item.unit_price)}`, colPos.unit, y, { width: 60, align: 'right' });
+    doc.text(`CHF ${fmtMoney(item.total)}`, colPos.total, y, { width: 65, align: 'right' });
+    y += 16;
+    if (item.description) {
+      doc.fontSize(8.5).fillColor('#6c7d8d').text(item.description, colPos.desc, y, { width: 420 });
+      y += doc.heightOfString(item.description, { width: 420 }) + 4;
+    }
+    y += 8;
   }
 
-  y += 14;
+  y = ensureSpace(doc, y, 90);
   doc.moveTo(50, y).lineTo(545, y).strokeColor('#e1e7ed').stroke();
   y += 12;
 
-  const subtotal = order.total;
+  const subtotal = Number(order.subtotal);
   const mwst = Math.round(subtotal * (COMPANY.mwstRate / 100) * 100) / 100;
   const grandTotal = Math.round((subtotal + mwst) * 100) / 100;
 
@@ -108,14 +120,15 @@ function buildOfferPdf(order, user) {
     const created = new Date(order.created_at);
     let y = drawHeader(doc, 'Offerte', order.offer_number, created, user);
     const { y: afterTable } = drawItemsTable(doc, y, order);
-    y = afterTable;
+    y = ensureSpace(doc, afterTable, 60);
 
     const validUntil = addDays(created, 30);
     doc.font('Helvetica').fontSize(9.5).fillColor('#485a6b');
     doc.text(
-      `Vielen Dank für dein Interesse an "${order.title}". Dieses Angebot ist gültig bis ${fmtDate(validUntil)}. ` +
-      'Mit dem Absenden deiner Bestellung im Kundenportal hast du diese Leistung bereits angefragt; die zugehörige ' +
-      'Rechnung findest du als separates Dokument im Anhang dieser E-Mail.',
+      `Dieses Angebot ist gültig bis ${fmtDate(validUntil)}. Mit dem Absenden deiner Bestellung im Kundenportal hast ` +
+      'du diese Leistungen bereits verbindlich bestellt; die zugehörige Rechnung findest du als separates Dokument ' +
+      'im Anhang dieser E-Mail. Bestellte Leads werden separat für dich zusammengestellt und in deinem Portal ' +
+      'bereitgestellt.',
       50, y, { width: 495 }
     );
 
@@ -134,7 +147,7 @@ function buildInvoicePdf(order, user) {
     const created = new Date(order.created_at);
     let y = drawHeader(doc, 'Rechnung', order.invoice_number, created, user);
     const { y: afterTable, grandTotal } = drawItemsTable(doc, y, order);
-    y = afterTable;
+    y = ensureSpace(doc, afterTable, 90);
 
     const dueDate = addDays(created, COMPANY.paymentTermDays);
     doc.font('Helvetica').fontSize(9.5).fillColor('#485a6b');

@@ -1,47 +1,80 @@
-const path = require('node:path');
-const fs = require('node:fs');
-const { DatabaseSync } = require('node:sqlite');
+const { Pool } = require('pg');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'app.db');
-fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+const connectionString =
+  process.env.NETLIFY_DATABASE_URL ||
+  process.env.DATABASE_URL ||
+  process.env.NETLIFY_DATABASE_URL_UNPOOLED;
 
-const db = new DatabaseSync(DB_PATH);
-db.exec('PRAGMA journal_mode = WAL;');
-db.exec('PRAGMA foreign_keys = ON;');
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    company TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    branche TEXT DEFAULT '',
-    typkunde TEXT DEFAULT '',
-    created_at TEXT NOT NULL
+if (!connectionString) {
+  console.warn(
+    '[db] Keine Datenbank-Verbindung gefunden (NETLIFY_DATABASE_URL / DATABASE_URL fehlt in der Umgebung). ' +
+    'Auf Netlify: `netlify db init` bzw. Netlify DB im Team-Dashboard aktivieren. Lokal: DATABASE_URL in .env setzen.'
   );
+}
 
-  CREATE TABLE IF NOT EXISTS orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    category TEXT NOT NULL,
-    product_id TEXT,
-    title TEXT NOT NULL,
-    description TEXT DEFAULT '',
-    typkunde TEXT DEFAULT '',
-    branche TEXT DEFAULT '',
-    quantity INTEGER NOT NULL DEFAULT 1,
-    unit_price REAL NOT NULL,
-    total REAL NOT NULL,
-    currency TEXT NOT NULL DEFAULT 'CHF',
-    offer_number TEXT NOT NULL,
-    invoice_number TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'Offerte & Rechnung gesendet',
-    email_sent INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL
-  );
+let pool;
+function getPool() {
+  if (!pool) {
+    pool = new Pool({
+      connectionString,
+      ssl: connectionString && !/localhost|127\.0\.0\.1/.test(connectionString) ? { rejectUnauthorized: false } : false,
+      max: 3,
+    });
+  }
+  return pool;
+}
 
-  CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
-`);
+async function query(text, params) {
+  return getPool().query(text, params);
+}
 
-module.exports = db;
+let migrationPromise = null;
+function ensureSchema() {
+  if (!migrationPromise) {
+    migrationPromise = query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        company TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        branche TEXT DEFAULT '',
+        typkunde TEXT DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
+      CREATE TABLE IF NOT EXISTS orders (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        offer_number TEXT NOT NULL DEFAULT '',
+        invoice_number TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'Bestellung eingegangen',
+        subtotal NUMERIC(10,2) NOT NULL DEFAULT 0,
+        currency TEXT NOT NULL DEFAULT 'CHF',
+        email_sent BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
+      CREATE TABLE IF NOT EXISTS order_items (
+        id SERIAL PRIMARY KEY,
+        order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+        category TEXT NOT NULL,
+        product_id TEXT,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        quantity INTEGER NOT NULL DEFAULT 1,
+        unit_price NUMERIC(10,2) NOT NULL,
+        total NUMERIC(10,2) NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
+      CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+    `).catch((err) => {
+      migrationPromise = null;
+      throw err;
+    });
+  }
+  return migrationPromise;
+}
+
+module.exports = { query, ensureSchema, getPool };

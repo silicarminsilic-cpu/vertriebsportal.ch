@@ -8,56 +8,19 @@ const { requireAuth } = require('./auth');
 const router = express.Router();
 router.use(requireAuth);
 
-function publicOrder(row) {
-  return {
-    id: row.id,
-    category: row.category,
-    productId: row.product_id,
-    title: row.title,
-    description: row.description,
-    typkunde: row.typkunde,
-    branche: row.branche,
-    quantity: row.quantity,
-    unitPrice: row.unit_price,
-    total: row.total,
-    currency: row.currency,
-    offerNumber: row.offer_number,
-    invoiceNumber: row.invoice_number,
-    status: row.status,
-    emailSent: Boolean(row.email_sent),
-    createdAt: row.created_at,
-  };
-}
+const MAX_ITEMS_PER_ORDER = 30;
 
-function docNumber(prefix, id, date) {
-  const year = date.getFullYear();
-  return `${prefix}-${year}-${String(id).padStart(5, '0')}`;
-}
-
-router.get('/', (req, res) => {
-  const rows = db
-    .prepare('SELECT * FROM orders WHERE user_id = ? ORDER BY id DESC')
-    .all(req.user.id);
-  res.json({ orders: rows.map(publicOrder) });
-});
-
-router.post('/', async (req, res) => {
-  const body = req.body || {};
-  const category = String(body.category || '');
-  let title, description, unitPrice, quantity, productId, typkunde, branche;
+function resolveItem(raw) {
+  const category = String(raw.category || '');
 
   if (category === 'individuell') {
-    const { typkunde: tk, branche: br, ziel, anzahl, zeitraum, zusatz, firma, website, region, budget, briefing } = body;
+    const { typkunde: tk, branche: br, ziel, anzahl, zeitraum, zusatz, firma, website, region, budget, briefing } = raw;
     if (!tk || !br || !ziel || !anzahl || !zeitraum || !firma || !region || !budget || !briefing) {
-      return res.status(400).json({ error: 'Bitte alle Pflichtfelder des Auftrags-Wizards ausfüllen.' });
+      return { error: 'Bitte alle Pflichtfelder des Auftrags-Wizards ausfüllen.' };
     }
-    typkunde = String(tk);
-    branche = String(br);
-    productId = null;
-    quantity = 1;
-    unitPrice = budgetBasePrice(String(budget));
-    title = `${branche} Kampagne – ${typkunde}`;
-    description = [
+    const unitPrice = budgetBasePrice(String(budget));
+    const title = `${br} Kampagne – ${tk}`;
+    const description = [
       `Kampagnenziel: ${ziel}`,
       `Gewünschte Anzahl Leads: ${anzahl}`,
       `Zeitraum: ${zeitraum}`,
@@ -68,114 +31,186 @@ router.post('/', async (req, res) => {
       `Budget: ${budget}`,
       `Briefing: ${String(briefing).slice(0, 600)}`,
     ].filter(Boolean).join('\n');
-  } else {
-    productId = String(body.productId || '');
-    const product = lookupProduct(category, productId);
-    if (!product) return res.status(400).json({ error: 'Unbekannte Dienstleistung.' });
-    quantity = Math.max(1, parseInt(body.quantity, 10) || 1);
-    if (product.minQty && quantity < product.minQty) {
-      return res.status(400).json({ error: `Mindestbestellmenge: ${product.minQty}` });
-    }
-    unitPrice = product.price;
-    title = product.name;
-    description = `${product.categoryLabel} · ${product.unit}`;
-    typkunde = req.user.typkunde || '';
-    branche = req.user.branche || '';
+    return {
+      category, productId: null, title, description,
+      quantity: 1, unitPrice, total: unitPrice,
+    };
   }
 
-  const total = Math.round(unitPrice * quantity * 100) / 100;
-  const createdAt = new Date().toISOString();
+  const productId = String(raw.productId || '');
+  const product = lookupProduct(category, productId);
+  if (!product) return { error: `Unbekannte Dienstleistung: ${category}/${productId}` };
 
-  const info = db
-    .prepare(
-      `INSERT INTO orders
-        (user_id, category, product_id, title, description, typkunde, branche, quantity, unit_price, total, currency, offer_number, invoice_number, status, email_sent, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CHF', '', '', 'Offerte & Rechnung gesendet', 0, ?)`
-    )
-    .run(req.user.id, category, productId, title, description, typkunde, branche, quantity, unitPrice, total, createdAt);
-
-  const orderId = info.lastInsertRowid;
-  const created = new Date(createdAt);
-  const offerNumber = docNumber('AN', orderId, created);
-  const invoiceNumber = docNumber('RE', orderId, created);
-  db.prepare('UPDATE orders SET offer_number = ?, invoice_number = ? WHERE id = ?').run(offerNumber, invoiceNumber, orderId);
-
-  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
-
-  let emailSent = false;
-  try {
-    const [offerPdf, invoicePdf] = await Promise.all([
-      buildOfferPdf(order, req.user),
-      buildInvoicePdf(order, req.user),
-    ]);
-
-    await sendMail({
-      to: req.user.email,
-      bcc: process.env.COMPANY_NOTIFY_EMAIL || undefined,
-      subject: `Deine Offerte & Rechnung für "${order.title}" – ${offerNumber} / ${invoiceNumber}`,
-      text:
-        `Hallo ${req.user.name}\n\n` +
-        `Vielen Dank für deine Bestellung von "${order.title}" über vertriebsportal.ch.\n` +
-        `Im Anhang findest du die Offerte (${offerNumber}) sowie die Rechnung (${invoiceNumber}) über CHF ${total.toFixed(2)} zzgl. MWST.\n\n` +
-        `Freundliche Grüsse\nvertriebsportal.ch`,
-      html:
-        `<p>Hallo ${escapeHtml(req.user.name)}</p>` +
-        `<p>Vielen Dank für deine Bestellung von <strong>${escapeHtml(order.title)}</strong> über vertriebsportal.ch.</p>` +
-        `<p>Im Anhang findest du die Offerte (${offerNumber}) sowie die Rechnung (${invoiceNumber}) über CHF ${total.toFixed(2)} zzgl. MWST.</p>` +
-        `<p>Freundliche Grüsse<br>vertriebsportal.ch</p>`,
-      attachments: [
-        { filename: `Offerte-${offerNumber}.pdf`, content: offerPdf, contentType: 'application/pdf' },
-        { filename: `Rechnung-${invoiceNumber}.pdf`, content: invoicePdf, contentType: 'application/pdf' },
-      ],
-    });
-    emailSent = true;
-  } catch (err) {
-    console.error('[orders] E-Mail-Versand fehlgeschlagen:', err.message);
+  const quantity = Math.max(1, parseInt(raw.quantity, 10) || 1);
+  if (product.minQty && quantity < product.minQty) {
+    return { error: `${product.name}: Mindestbestellmenge ${product.minQty}` };
   }
+  const total = Math.round(product.price * quantity * 100) / 100;
+  return {
+    category, productId, title: product.name,
+    description: `${product.categoryLabel} · ${product.unit}`,
+    quantity, unitPrice: product.price, total,
+  };
+}
 
-  db.prepare('UPDATE orders SET email_sent = ? WHERE id = ?').run(emailSent ? 1 : 0, orderId);
-  const finalOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+function summarizeTitle(items) {
+  if (items.length === 1) return items[0].title;
+  return `Bestellung mit ${items.length} Positionen`;
+}
 
-  res.status(201).json({
-    order: publicOrder(finalOrder),
-    emailSent,
-    mailSimulated: !smtpConfigured,
-  });
-});
+function docNumber(prefix, id, date) {
+  return `${prefix}-${date.getFullYear()}-${String(id).padStart(5, '0')}`;
+}
 
 function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function loadOwnedOrder(req, res) {
-  const order = db.prepare('SELECT * FROM orders WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
-  if (!order) {
-    res.status(404).json({ error: 'Beleg nicht gefunden.' });
-    return null;
-  }
-  return order;
+async function loadOrderWithItems(orderId, userId) {
+  const orderRes = await db.query('SELECT * FROM orders WHERE id = $1 AND user_id = $2', [orderId, userId]);
+  const order = orderRes.rows[0];
+  if (!order) return null;
+  const itemsRes = await db.query('SELECT * FROM order_items WHERE order_id = $1 ORDER BY id', [orderId]);
+  return { ...order, items: itemsRes.rows };
 }
 
-router.get('/:id/offer.pdf', async (req, res) => {
-  const order = loadOwnedOrder(req, res);
-  if (!order) return;
-  const pdf = await buildOfferPdf(order, req.user);
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `inline; filename="Offerte-${order.offer_number}.pdf"`);
-  res.send(pdf);
+function publicOrder(order) {
+  return {
+    id: order.id,
+    title: summarizeTitle(order.items),
+    items: order.items.map((it) => ({
+      category: it.category,
+      productId: it.product_id,
+      title: it.title,
+      description: it.description,
+      quantity: it.quantity,
+      unitPrice: Number(it.unit_price),
+      total: Number(it.total),
+    })),
+    subtotal: Number(order.subtotal),
+    currency: order.currency,
+    offerNumber: order.offer_number,
+    invoiceNumber: order.invoice_number,
+    status: order.status,
+    emailSent: Boolean(order.email_sent),
+    createdAt: order.created_at,
+  };
+}
+
+router.get('/', async (req, res, next) => {
+  try {
+    const ordersRes = await db.query('SELECT * FROM orders WHERE user_id = $1 ORDER BY id DESC', [req.user.id]);
+    const orders = [];
+    for (const o of ordersRes.rows) {
+      const itemsRes = await db.query('SELECT * FROM order_items WHERE order_id = $1 ORDER BY id', [o.id]);
+      orders.push(publicOrder({ ...o, items: itemsRes.rows }));
+    }
+    res.json({ orders });
+  } catch (err) { next(err); }
 });
 
-router.get('/:id/invoice.pdf', async (req, res) => {
-  const order = loadOwnedOrder(req, res);
-  if (!order) return;
-  const pdf = await buildInvoicePdf(order, req.user);
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `inline; filename="Rechnung-${order.invoice_number}.pdf"`);
-  res.send(pdf);
+router.post('/', async (req, res, next) => {
+  try {
+    const rawItems = Array.isArray(req.body.items) ? req.body.items : null;
+    if (!rawItems || !rawItems.length) {
+      return res.status(400).json({ error: 'Der Warenkorb ist leer.' });
+    }
+    if (rawItems.length > MAX_ITEMS_PER_ORDER) {
+      return res.status(400).json({ error: `Maximal ${MAX_ITEMS_PER_ORDER} Positionen pro Bestellung.` });
+    }
+
+    const items = [];
+    for (const raw of rawItems) {
+      const resolved = resolveItem(raw);
+      if (resolved.error) return res.status(400).json({ error: resolved.error });
+      items.push(resolved);
+    }
+
+    const subtotal = Math.round(items.reduce((s, it) => s + it.total, 0) * 100) / 100;
+
+    const orderInsert = await db.query(
+      `INSERT INTO orders (user_id, status, subtotal, currency) VALUES ($1, 'Bestellung eingegangen', $2, 'CHF') RETURNING *`,
+      [req.user.id, subtotal]
+    );
+    const orderRow = orderInsert.rows[0];
+
+    for (const it of items) {
+      await db.query(
+        `INSERT INTO order_items (order_id, category, product_id, title, description, quantity, unit_price, total)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [orderRow.id, it.category, it.productId, it.title, it.description, it.quantity, it.unitPrice, it.total]
+      );
+    }
+
+    const created = new Date(orderRow.created_at);
+    const offerNumber = docNumber('AN', orderRow.id, created);
+    const invoiceNumber = docNumber('RE', orderRow.id, created);
+    await db.query('UPDATE orders SET offer_number = $1, invoice_number = $2 WHERE id = $3', [offerNumber, invoiceNumber, orderRow.id]);
+
+    let order = await loadOrderWithItems(orderRow.id, req.user.id);
+
+    let emailSent = false;
+    try {
+      const [offerPdf, invoicePdf] = await Promise.all([
+        buildOfferPdf(order, req.user),
+        buildInvoicePdf(order, req.user),
+      ]);
+
+      const itemLines = order.items.map((it) => `- ${it.title} (${it.quantity}x): CHF ${Number(it.total).toFixed(2)}`).join('\n');
+      const itemLinesHtml = order.items.map((it) => `<li>${escapeHtml(it.title)} (${it.quantity}x): CHF ${Number(it.total).toFixed(2)}</li>`).join('');
+
+      await sendMail({
+        to: req.user.email,
+        bcc: process.env.COMPANY_NOTIFY_EMAIL || undefined,
+        subject: `Deine Offerte & Rechnung – ${offerNumber} / ${invoiceNumber}`,
+        text:
+          `Hallo ${req.user.name}\n\nVielen Dank für deine Bestellung über vertriebsportal.ch:\n${itemLines}\n\n` +
+          `Im Anhang findest du die Offerte (${offerNumber}) sowie die Rechnung (${invoiceNumber}) über CHF ${Number(order.subtotal).toFixed(2)} zzgl. MWST.\n` +
+          `Bestellte Leads werden separat für dich zusammengestellt und in deinem Portal unter "Meine Aufträge" bereitgestellt.\n\n` +
+          `Freundliche Grüsse\nvertriebsportal.ch`,
+        html:
+          `<p>Hallo ${escapeHtml(req.user.name)}</p>` +
+          `<p>Vielen Dank für deine Bestellung über vertriebsportal.ch:</p><ul>${itemLinesHtml}</ul>` +
+          `<p>Im Anhang findest du die Offerte (${offerNumber}) sowie die Rechnung (${invoiceNumber}) über CHF ${Number(order.subtotal).toFixed(2)} zzgl. MWST.</p>` +
+          `<p>Bestellte Leads werden separat für dich zusammengestellt und in deinem Portal unter "Meine Aufträge" bereitgestellt.</p>` +
+          `<p>Freundliche Grüsse<br>vertriebsportal.ch</p>`,
+        attachments: [
+          { filename: `Offerte-${offerNumber}.pdf`, content: offerPdf, contentType: 'application/pdf' },
+          { filename: `Rechnung-${invoiceNumber}.pdf`, content: invoicePdf, contentType: 'application/pdf' },
+        ],
+      });
+      emailSent = true;
+    } catch (err) {
+      console.error('[orders] E-Mail-Versand fehlgeschlagen:', err.message);
+    }
+
+    await db.query('UPDATE orders SET email_sent = $1 WHERE id = $2', [emailSent, orderRow.id]);
+    order = await loadOrderWithItems(orderRow.id, req.user.id);
+
+    res.status(201).json({ order: publicOrder(order), emailSent, mailSimulated: !smtpConfigured });
+  } catch (err) { next(err); }
+});
+
+router.get('/:id/offer.pdf', async (req, res, next) => {
+  try {
+    const order = await loadOrderWithItems(req.params.id, req.user.id);
+    if (!order) return res.status(404).json({ error: 'Beleg nicht gefunden.' });
+    const pdf = await buildOfferPdf(order, req.user);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="Offerte-${order.offer_number}.pdf"`);
+    res.send(pdf);
+  } catch (err) { next(err); }
+});
+
+router.get('/:id/invoice.pdf', async (req, res, next) => {
+  try {
+    const order = await loadOrderWithItems(req.params.id, req.user.id);
+    if (!order) return res.status(404).json({ error: 'Beleg nicht gefunden.' });
+    const pdf = await buildInvoicePdf(order, req.user);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="Rechnung-${order.invoice_number}.pdf"`);
+    res.send(pdf);
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

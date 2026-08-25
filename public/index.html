@@ -1030,6 +1030,7 @@
       <button class="nav-item" data-page="kampagnen-kaufen" data-ic="megaphone"> Kampagnen kaufen</button>
       <button class="nav-item" data-page="vorlagen" data-ic="folder"> Vorlagen</button>
       <button class="nav-item" data-page="marketingservices" data-ic="briefcase"> Marketingservices</button>
+      <button class="nav-item" data-page="warenkorb" data-ic="cart"> Warenkorb<span class="nav-badge" id="nav-badge-cart"></span></button>
       <div class="nav-divider"></div>
       <button class="nav-item" data-page="budget" data-ic="wallet"> Budget</button>
       <button class="nav-item" data-page="termine" data-ic="calendar"> Termine</button>
@@ -1113,19 +1114,14 @@ function icSvg(name, size){
    STATE
 ===================================================================== */
 const STATUS_STYLE = {
+  "Bestellung eingegangen":"tag-amber",
   "In Umsetzung":"tag-blue",
   "In Bearbeitung":"tag-amber",
-  "Briefing erhalten":"tag-violet",
-  "Angebot erstellt":"tag-violet",
-  "Offerte & Rechnung gesendet":"tag-violet",
   "Abgeschlossen":"tag-green"
 };
-const STATUS_PROGRESS = {
-  "In Umsetzung":60,"In Bearbeitung":30,"Briefing erhalten":10,"Angebot erstellt":20,"Offerte & Rechnung gesendet":15,"Abgeschlossen":100
-};
-const BRANCHE_CODE = {"Versicherungen":"VS","Finanzen & Bank":"FB","Immobilien":"IM","Edelmetalle":"EM","Krypto":"KR","Sonstige":"SO"};
 
 let orders = [];
+let cart = [];
 let currentPage = "dashboard";
 let wizardStep = 1;
 let wizardData = { typkunde:null, branche:null, ziel:"", anzahl:"", zeitraum:"", zusatz:[], firma:"", website:"", region:"", budget:"", briefing:"" };
@@ -1231,12 +1227,6 @@ const DEFAULT_WALLET = { balance:3700, history:[
   {date:'05.08.2026', desc:'Kauf: Hypotheken-Leads (10x)', amount:-550, balanceAfter:4450},
   {date:'01.08.2026', desc:'Guthaben aufgeladen', amount:5000, balanceAfter:5000},
 ]};
-const DEFAULT_LEAD_PURCHASES = [
-  {id:1, date:'05.08.2026', productName:'Hypotheken-Leads', qty:10, total:550},
-];
-const DEFAULT_BOOKED_SERVICES = [
-  {id:1, date:'08.08.2026', serviceName:'Grafikdesign-Paket', price:450},
-];
 const DEFAULT_APPOINTMENTS = [
   {id:1, title:'Kickoff Krankenkasse Kampagne', date:'21.08.2026', time:'14:30', type:'team', status:'Bestätigt'},
   {id:2, title:'Strategiegespräch – Hypotheken-Leads', date:'18.08.2026', time:'10:00', type:'team', status:'Bestätigt'},
@@ -1244,8 +1234,6 @@ const DEFAULT_APPOINTMENTS = [
 ];
 
 let wallet = { balance:0, history:[] };
-let leadPurchases = [];
-let bookedServices = [];
 let appointments = [];
 let pipelineLeads = [];
 let serviceTab = 'Alle';
@@ -1261,14 +1249,13 @@ function apiOrderToLocal(o){
   return {
     id: o.id,
     name: o.title,
-    typkunde: o.typkunde || '—',
-    branche: o.branche || o.category,
+    items: o.items,
+    itemsSummary: o.items.map(it=>`${it.title}${it.quantity>1?' ('+it.quantity+'x)':''}`).join(', '),
     status: o.status,
     createdAt: String(created.getDate()).padStart(2,'0')+'.'+String(created.getMonth()+1).padStart(2,'0')+'.'+created.getFullYear(),
     offerNumber: o.offerNumber,
     invoiceNumber: o.invoiceNumber,
-    total: o.total,
-    quantity: o.quantity,
+    total: o.subtotal,
     emailSent: o.emailSent
   };
 }
@@ -1278,10 +1265,78 @@ async function loadOrders(){
     orders = apiOrders.map(apiOrderToLocal);
   }catch(e){ console.warn('Aufträge konnten nicht geladen werden', e); orders = []; }
 }
-async function createOrder(payload){
-  const { order, emailSent } = await api('/orders', {method:'POST', body:payload});
+async function createOrder(items){
+  const { order, emailSent } = await api('/orders', {method:'POST', body:{items}});
   await loadOrders();
   return { order, emailSent };
+}
+
+/* =====================================================================
+   WARENKORB
+===================================================================== */
+function cartKey(category, productId){ return category+':'+productId; }
+function loadCart(){
+  try{
+    const raw = localStorage.getItem('vertriebsportal:cart');
+    cart = raw ? JSON.parse(raw) : [];
+  }catch(e){ cart = []; }
+}
+function saveCart(){
+  try{ localStorage.setItem('vertriebsportal:cart', JSON.stringify(cart)); }catch(e){}
+}
+function clearCart(){
+  cart = [];
+  saveCart();
+}
+function cartCount(){ return cart.reduce((s,c)=>s+c.quantity,0); }
+function cartTotal(){ return cart.reduce((s,c)=>s+c.unitPrice*c.quantity,0); }
+function addToCart(category, productId, title, unitPrice, unit, quantity, minQty){
+  quantity = Math.max(minQty||1, quantity||1);
+  const key = cartKey(category, productId);
+  const existing = cart.find(c=>c.key===key);
+  if(existing){ existing.quantity += quantity; }
+  else{ cart.push({key, category, productId, title, unitPrice, unit, quantity, minQty: minQty||1}); }
+  saveCart();
+  updateCartBadge();
+  showToast(`${title} in den Warenkorb gelegt`);
+}
+function removeFromCart(key){
+  cart = cart.filter(c=>c.key!==key);
+  saveCart();
+  updateCartBadge();
+  if(currentPage==='warenkorb') render();
+}
+function setCartQty(key, qty){
+  const item = cart.find(c=>c.key===key);
+  if(!item) return;
+  item.quantity = Math.max(item.minQty||1, qty||item.minQty||1);
+  saveCart();
+  updateCartBadge();
+  if(currentPage==='warenkorb') render();
+}
+function updateCartBadge(){
+  const el = document.getElementById('nav-badge-cart');
+  if(!el) return;
+  const n = cartCount();
+  el.textContent = n;
+  el.classList.toggle('show', n>0);
+}
+async function checkoutCart(){
+  if(!cart.length){ showToast('Dein Warenkorb ist leer.'); return; }
+  const btn = document.getElementById('checkout-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Wird bestellt…'; }
+  try{
+    const items = cart.map(c=>({category:c.category, productId:c.productId, quantity:c.quantity}));
+    await createOrder(items);
+    clearCart();
+    updateCartBadge();
+    showToast(`Bestellung eingegangen – Offerte & Rechnung wurden an ${userProfile.email} gesendet`);
+    navigate('meine-auftraege');
+  }catch(ex){
+    showToast(ex.message || 'Bestellung fehlgeschlagen.');
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = 'Verbindlich bestellen'; }
+  }
 }
 
 async function loadWallet(){
@@ -1294,32 +1349,6 @@ async function loadWallet(){
 }
 async function saveWallet(){
   try{ await window.storage.set('vertriebsportal:wallet', JSON.stringify(wallet), false); }
-  catch(e){ console.warn('Speichern fehlgeschlagen', e); }
-}
-
-async function loadLeadPurchases(){
-  try{
-    const res = await window.storage.get('vertriebsportal:leadpurchases', false);
-    if(res && res.value){ leadPurchases = JSON.parse(res.value); return; }
-  }catch(e){}
-  leadPurchases = DEFAULT_LEAD_PURCHASES.slice();
-  saveLeadPurchases();
-}
-async function saveLeadPurchases(){
-  try{ await window.storage.set('vertriebsportal:leadpurchases', JSON.stringify(leadPurchases), false); }
-  catch(e){ console.warn('Speichern fehlgeschlagen', e); }
-}
-
-async function loadBookedServices(){
-  try{
-    const res = await window.storage.get('vertriebsportal:services', false);
-    if(res && res.value){ bookedServices = JSON.parse(res.value); return; }
-  }catch(e){}
-  bookedServices = DEFAULT_BOOKED_SERVICES.slice();
-  saveBookedServices();
-}
-async function saveBookedServices(){
-  try{ await window.storage.set('vertriebsportal:services', JSON.stringify(bookedServices), false); }
   catch(e){ console.warn('Speichern fehlgeschlagen', e); }
 }
 
@@ -1495,10 +1524,12 @@ async function api(path, opts){
 }
 
 async function enterApp(){
-  await Promise.all([loadOrders(), loadWallet(), loadLeadPurchases(), loadBookedServices(), loadAppointments(), loadPipeline()]);
+  loadCart();
+  await Promise.all([loadOrders(), loadWallet(), loadAppointments(), loadPipeline()]);
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').classList.add('show');
   updateSidebarUser();
+  updateCartBadge();
   navigate('dashboard');
 }
 
@@ -1550,7 +1581,7 @@ document.getElementById('register-form').addEventListener('submit', async functi
   try{
     const { user } = await api('/auth/register', {method:'POST', body:{name, company, email, password:pass}});
     userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde };
-    orders = []; wallet = JSON.parse(JSON.stringify(DEFAULT_WALLET)); leadPurchases = []; bookedServices = []; appointments = DEFAULT_APPOINTMENTS.slice(); pipelineLeads = JSON.parse(JSON.stringify(DEFAULT_PIPELINE));
+    orders = []; wallet = JSON.parse(JSON.stringify(DEFAULT_WALLET)); appointments = DEFAULT_APPOINTMENTS.slice(); pipelineLeads = JSON.parse(JSON.stringify(DEFAULT_PIPELINE));
     await enterApp();
     showToast(`Willkommen, ${name}! Dein Konto wurde erstellt.`);
   }catch(ex){
@@ -1561,6 +1592,7 @@ document.getElementById('register-form').addEventListener('submit', async functi
 
 document.getElementById('logout-btn').addEventListener('click', async ()=>{
   try{ await api('/auth/logout', {method:'POST'}); }catch(e){}
+  clearCart();
   document.getElementById('app').classList.remove('show');
   document.getElementById('login-screen').style.display = 'grid';
   document.getElementById('sidebar').classList.remove('open');
@@ -1587,6 +1619,7 @@ const PAGE_META = {
   "kampagnen-kaufen": {title:"Kampagnen kaufen", sub:"Fertige Kampagnen-Pakete und Landingpages direkt buchen"},
   "vorlagen": {title:"Vorlagen", sub:"Fertige Beispiele je Branche – startklar als Basis für deinen Auftrag"},
   "marketingservices": {title:"Marketingservices", sub:"Zusätzliche Marketingleistungen dazubuchen"},
+  "warenkorb": {title:"Warenkorb", sub:"Bestellung prüfen und verbindlich abschicken"},
   "budget": {title:"Budget", sub:"Guthaben aufladen und selbst einsetzen"},
   "termine": {title:"Termine", sub:"Termin anfragen oder selbst eintragen"},
   "rechnungen": {title:"Rechnungen", sub:"Deine Rechnungen und Zahlungen im Überblick"},
@@ -1627,6 +1660,7 @@ function navigate(page, opts){
 function render(){
   updateTopbarBalance();
   updateNavBadges();
+  updateCartBadge();
   const c = document.getElementById('page-content');
   if(currentPage === 'dashboard') c.innerHTML = renderDashboard();
   else if(currentPage === 'neuer-auftrag') c.innerHTML = renderNeuerAuftragPage();
@@ -1636,6 +1670,7 @@ function render(){
   else if(currentPage === 'kampagnen-kaufen') c.innerHTML = renderKampagnenKaufen();
   else if(currentPage === 'vorlagen') c.innerHTML = renderVorlagen();
   else if(currentPage === 'marketingservices') c.innerHTML = renderServices();
+  else if(currentPage === 'warenkorb') c.innerHTML = renderWarenkorb();
   else if(currentPage === 'budget') c.innerHTML = renderBudget();
   else if(currentPage === 'termine') c.innerHTML = renderTermine();
   else if(currentPage === 'rechnungen') c.innerHTML = renderRechnungen();
@@ -1957,12 +1992,11 @@ function statCard(icName,bg,fg,label,value,sub,animate){
 
 function orderRow(o){
   const cls = STATUS_STYLE[o.status] || 'tag-blue';
-  const code = BRANCHE_CODE[o.branche] || '—';
   return `<div class="order-row" data-nav="meine-auftraege">
-    <div class="mono-badge">${code}</div>
+    <div class="mono-badge">${o.items.length}x</div>
     <div class="info">
       <div class="name">${escapeHtml(o.name)}</div>
-      <div class="sub">${escapeHtml(o.typkunde)} – ${escapeHtml(o.branche)}</div>
+      <div class="sub">${escapeHtml(o.itemsSummary)}</div>
     </div>
     <div class="meta">
       <span class="tag ${cls}"><span class="tdot"></span>${o.status}</span>
@@ -2248,7 +2282,7 @@ async function submitOrder(){
   const wizNext = document.getElementById('wiz-next');
   if(wizNext){ wizNext.disabled = true; wizNext.textContent = 'Wird gesendet…'; }
   try{
-    await createOrder({ category:'individuell', ...wizardData });
+    await createOrder([{ category:'individuell', ...wizardData }]);
     showToast(`Angebot & Rechnung wurden an ${userProfile.email} gesendet`);
     navigate('meine-auftraege');
   }catch(ex){
@@ -2259,53 +2293,33 @@ async function submitOrder(){
 }
 
 /* =====================================================================
-   MARKTPLATZ — KAUF- & BUCHUNGSAKTIONEN
+   MARKTPLATZ — IN DEN WARENKORB LEGEN
 ===================================================================== */
-async function buyLead(productId){
+function buyLead(productId){
   const p = LEAD_PRODUCTS.find(x=>x.id===productId);
   if(!p) return;
   const qtyInput = document.getElementById('qty-'+productId);
   const qty = parseInt(qtyInput ? qtyInput.value : p.minQty, 10);
   if(isNaN(qty) || qty < p.minQty){ showToast(`Mindestbestellmenge: ${p.minQty} Leads`); return; }
-  try{
-    await createOrder({category:'lead', productId, quantity:qty});
-    leadPurchases.unshift({id:Date.now(), date:todayStr(), productName:p.name, qty, total:qty*p.price});
-    saveLeadPurchases();
-    showToast(`Offerte & Rechnung für ${qty}x ${p.name} wurden an ${userProfile.email} gesendet`);
-    render();
-  }catch(ex){ showToast(ex.message || 'Bestellung fehlgeschlagen.'); }
+  addToCart('lead', productId, p.name, p.price, 'Lead', qty, p.minQty);
 }
 
-async function buyCampaign(productId){
+function buyCampaign(productId){
   const p = CAMPAIGN_PRODUCTS.find(x=>x.id===productId);
   if(!p) return;
-  try{
-    await createOrder({category:'kampagne', productId, quantity:1});
-    showToast(`Offerte & Rechnung für ${p.name} wurden an ${userProfile.email} gesendet`);
-    render();
-  }catch(ex){ showToast(ex.message || 'Bestellung fehlgeschlagen.'); }
+  addToCart('kampagne', productId, p.name, p.price, 'Pauschal', 1, 1);
 }
 
-async function buyLandingpage(productId){
+function buyLandingpage(productId){
   const p = LANDINGPAGE_PRODUCTS.find(x=>x.id===productId);
   if(!p) return;
-  try{
-    await createOrder({category:'landingpage', productId, quantity:1});
-    showToast(`Offerte & Rechnung für ${p.name} wurden an ${userProfile.email} gesendet`);
-    render();
-  }catch(ex){ showToast(ex.message || 'Bestellung fehlgeschlagen.'); }
+  addToCart('landingpage', productId, p.name, p.price, 'Pauschal', 1, 1);
 }
 
-async function bookService(serviceId){
+function bookService(serviceId){
   const s = SERVICES.find(x=>x.id===serviceId);
   if(!s) return;
-  try{
-    await createOrder({category:'service', productId:serviceId, quantity:1});
-    bookedServices.unshift({id:Date.now(), date:todayStr(), serviceName:s.name, price:s.price});
-    saveBookedServices();
-    showToast(`Offerte & Rechnung für ${s.name} wurden an ${userProfile.email} gesendet`);
-    render();
-  }catch(ex){ showToast(ex.message || 'Buchung fehlgeschlagen.'); }
+  addToCart('service', serviceId, s.name, s.price, s.unit, 1, 1);
 }
 
 function useTemplate(typkunde, branche){
@@ -2365,19 +2379,17 @@ function addOwnAppointment(){
 ===================================================================== */
 let currentTab = 'Alle';
 function renderOrdersTable(defaultTab){
-  currentTab = currentTab && ['Alle','In Bearbeitung','In Umsetzung','Abgeschlossen'].includes(currentTab) ? currentTab : defaultTab;
-  const tabs = ['Alle','In Bearbeitung','In Umsetzung','Abgeschlossen'];
+  const validTabs = ['Alle','Bestellung eingegangen','In Bearbeitung','In Umsetzung','Abgeschlossen'];
+  currentTab = currentTab && validTabs.includes(currentTab) ? currentTab : defaultTab;
   const filtered = currentTab==='Alle' ? orders : orders.filter(o=>o.status===currentTab);
 
   const rows = filtered.map(o=>{
-    const progress = STATUS_PROGRESS[o.status] ?? 0;
     const cls = STATUS_STYLE[o.status] || 'tag-blue';
     return `<tr>
       <td class="name-cell">${escapeHtml(o.name)}</td>
-      <td>${escapeHtml(o.typkunde)}</td>
-      <td>${escapeHtml(o.branche)}</td>
+      <td>${escapeHtml(o.itemsSummary)}</td>
+      <td class="mono-cell">CHF ${fmtMoney(o.total)}</td>
       <td><span class="tag ${cls}"><span class="tdot"></span>${o.status}</span></td>
-      <td><div class="progress-wrap"><div class="progress-bar"><div style="width:${progress}%"></div></div><span class="mono" style="font-size:11px;color:var(--gray-500);">${progress}%</span></div></td>
       <td class="mono-cell">${o.createdAt}</td>
     </tr>`;
   }).join('');
@@ -2385,14 +2397,14 @@ function renderOrdersTable(defaultTab){
   return `
     <div class="flex between center" style="margin-bottom:16px;">
       <div class="tabs">
-        ${tabs.map(t=>`<button class="tab-btn ${t===currentTab?'active':''}" data-tab="${t}">${t}</button>`).join('')}
+        ${validTabs.map(t=>`<button class="tab-btn ${t===currentTab?'active':''}" data-tab="${t}">${t}</button>`).join('')}
       </div>
       <button class="btn btn-blue" data-nav="neuer-auftrag">${icSvg('plus',14)} Neuer Auftrag</button>
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Auftrag</th><th>Typkunde</th><th>Branche / Thema</th><th>Status</th><th>Fortschritt</th><th>Erstellt am</th></tr></thead>
-        <tbody>${rows || `<tr><td colspan="6" style="text-align:center;color:var(--gray-400);padding:28px;">Keine Aufträge in dieser Kategorie.</td></tr>`}</tbody>
+        <thead><tr><th>Auftrag</th><th>Positionen</th><th>Betrag</th><th>Status</th><th>Erstellt am</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:28px;">Keine Aufträge in dieser Kategorie.</td></tr>`}</tbody>
       </table>
       <div class="table-foot">1–${filtered.length} von ${filtered.length} Einträgen</div>
     </div>
@@ -2447,10 +2459,14 @@ function renderVorlagen(){
 }
 
 /* ---------- Leads kaufen ---------- */
-function walletMiniBar(){
+function cartMiniBar(){
+  const n = cartCount();
+  if(!n) return `<div class="wallet-mini">
+    <div class="wm-left">${icSvg('cart',16)}<span>Dein Warenkorb ist leer – wähle unten Leistungen aus und lege sie in den Warenkorb.</span></div>
+  </div>`;
   return `<div class="wallet-mini">
-    <div class="wm-left">${icSvg('wallet',16)}<span>Guthaben: <strong>CHF ${fmtMoney(wallet.balance)}</strong></span></div>
-    <button class="link-btn" data-nav="budget">Guthaben verwalten →</button>
+    <div class="wm-left">${icSvg('cart',16)}<span><strong>${n}</strong> Artikel im Warenkorb · <strong>CHF ${fmtMoney(cartTotal())}</strong></span></div>
+    <button class="link-btn" data-nav="warenkorb">Warenkorb ansehen →</button>
   </div>`;
 }
 function leadProductCard(p){
@@ -2468,29 +2484,16 @@ function leadProductCard(p){
         <input type="number" id="qty-${p.id}" value="${p.minQty}" min="${p.minQty}" readonly>
         <button type="button" class="qty-btn" data-qty-plus="${p.id}">+</button>
       </div>
-      <button class="btn btn-blue buy-lead-btn" data-id="${p.id}">${icSvg('cart',14)} Kaufen</button>
+      <button class="btn btn-blue buy-lead-btn" data-id="${p.id}">${icSvg('cart',14)} In den Warenkorb</button>
     </div>
     <div class="shop-card-note">Mindestbestellmenge: ${p.minQty} Leads · Zielgruppe: ${p.typkunde}</div>
   </div>`;
 }
 function renderLeadsKaufen(){
   return `
-    ${walletMiniBar()}
+    ${cartMiniBar()}
     <div class="section-label">Leads nach Branche kaufen</div>
     <div class="shop-grid">${LEAD_PRODUCTS.map(leadProductCard).join('')}</div>
-    ${leadPurchases.length ? `
-      <div class="section-label" style="margin-top:28px;">Deine gekauften Leads</div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Produkt</th><th>Menge</th><th>Total</th><th>Datum</th></tr></thead>
-          <tbody>${leadPurchases.map(lp=>`<tr>
-            <td class="name-cell">${escapeHtml(lp.productName)}</td>
-            <td>${lp.qty}</td>
-            <td class="mono-cell">CHF ${fmtMoney(lp.total)}</td>
-            <td class="mono-cell">${lp.date}</td>
-          </tr>`).join('')}</tbody>
-        </table>
-      </div>` : ''}
   `;
 }
 
@@ -2504,7 +2507,7 @@ function campaignProductCard(p){
     <div class="shop-card-title">${p.name}</div>
     <div class="shop-card-desc">${p.desc}</div>
     <div class="shop-card-note" style="margin:0 0 12px;">${icSvg('target',13)} ${p.leads}</div>
-    <button class="btn btn-blue buy-campaign-btn" style="width:100%;justify-content:center;" data-id="${p.id}">${icSvg('cart',14)} Jetzt buchen</button>
+    <button class="btn btn-blue buy-campaign-btn" style="width:100%;justify-content:center;" data-id="${p.id}">${icSvg('cart',14)} In den Warenkorb</button>
   </div>`;
 }
 function landingpageCard(p){
@@ -2528,12 +2531,12 @@ function landingpageCard(p){
     </div>
     <div class="shop-card-title">${p.name}</div>
     <div class="shop-card-desc">${p.desc}</div>
-    <button class="btn btn-blue buy-landingpage-btn" style="width:100%;justify-content:center;margin-top:10px;" data-id="${p.id}">${icSvg('cart',14)} Direkt kaufen</button>
+    <button class="btn btn-blue buy-landingpage-btn" style="width:100%;justify-content:center;margin-top:10px;" data-id="${p.id}">${icSvg('cart',14)} In den Warenkorb</button>
   </div>`;
 }
 function renderKampagnenKaufen(){
   return `
-    ${walletMiniBar()}
+    ${cartMiniBar()}
     <div class="tabs" style="margin-bottom:16px;">
       <button class="tab-btn campaign-tab ${campaignTab==='Pakete'?'active':''}" data-ctab="Pakete">Kampagnen-Pakete</button>
       <button class="tab-btn campaign-tab ${campaignTab==='Landingpages'?'active':''}" data-ctab="Landingpages">Landingpages</button>
@@ -2558,29 +2561,60 @@ function serviceCard(s){
     </div>
     <div class="shop-card-title">${s.name}</div>
     <div class="shop-card-desc">${s.desc}</div>
-    <button class="btn btn-blue book-service-btn" style="width:100%;justify-content:center;margin-top:6px;" data-id="${s.id}">Buchen</button>
+    <button class="btn btn-blue book-service-btn" style="width:100%;justify-content:center;margin-top:6px;" data-id="${s.id}">${icSvg('cart',14)} In den Warenkorb</button>
   </div>`;
 }
 function renderServices(){
   const filtered = serviceTab==='Alle' ? SERVICES : SERVICES.filter(s=>s.cat===serviceTab);
   return `
-    ${walletMiniBar()}
+    ${cartMiniBar()}
     <div class="tabs" style="margin-bottom:16px;flex-wrap:wrap;">
       ${SERVICE_CATS.map(c=>`<button class="tab-btn service-tab ${c===serviceTab?'active':''}" data-cat="${c}">${c}</button>`).join('')}
     </div>
     <div class="shop-grid">${filtered.map(serviceCard).join('')}</div>
-    ${bookedServices.length ? `
-      <div class="section-label" style="margin-top:28px;">Deine gebuchten Leistungen</div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Leistung</th><th>Preis</th><th>Datum</th></tr></thead>
-          <tbody>${bookedServices.map(b=>`<tr>
-            <td class="name-cell">${escapeHtml(b.serviceName)}</td>
-            <td class="mono-cell">CHF ${fmtMoney(b.price)}</td>
-            <td class="mono-cell">${b.date}</td>
-          </tr>`).join('')}</tbody>
-        </table>
-      </div>` : ''}
+  `;
+}
+
+/* ---------- Warenkorb ---------- */
+function cartRow(item){
+  return `<tr>
+    <td class="name-cell">${escapeHtml(item.title)}</td>
+    <td class="mono-cell">CHF ${fmtMoney(item.unitPrice)} ${item.unit && item.unit!=='Pauschal' ? '/'+escapeHtml(item.unit) : ''}</td>
+    <td>
+      <div class="qty-stepper">
+        <button type="button" class="qty-btn" data-cart-minus="${escapeAttr(item.key)}">−</button>
+        <input type="number" value="${item.quantity}" min="${item.minQty}" readonly>
+        <button type="button" class="qty-btn" data-cart-plus="${escapeAttr(item.key)}">+</button>
+      </div>
+    </td>
+    <td class="mono-cell">CHF ${fmtMoney(item.unitPrice*item.quantity)}</td>
+    <td><button class="icon-btn" data-cart-remove="${escapeAttr(item.key)}" title="Entfernen" style="width:30px;height:30px;font-size:15px;font-weight:600;">×</button></td>
+  </tr>`;
+}
+function renderWarenkorb(){
+  if(!cart.length){
+    return `<div class="placeholder">
+      <div class="pic">${icSvg('cart',26)}</div>
+      <h3>Dein Warenkorb ist leer</h3>
+      <p>Wähle Leads, Kampagnen, Landingpages oder Marketingservices aus und lege sie in den Warenkorb.</p>
+      <button class="btn btn-outline" data-nav="leads-kaufen">Leads entdecken</button>
+    </div>`;
+  }
+  const total = cartTotal();
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Leistung</th><th>Preis</th><th>Menge</th><th>Total</th><th></th></tr></thead>
+        <tbody>${cart.map(cartRow).join('')}</tbody>
+      </table>
+    </div>
+    <div class="panel" style="max-width:420px;margin-top:16px;margin-left:auto;padding:18px 20px;">
+      <div class="review-line"><span>Zwischensumme</span><span>CHF ${fmtMoney(total)}</span></div>
+      <div class="review-line"><span>zzgl. MWST</span><span>wird auf Offerte/Rechnung ausgewiesen</span></div>
+      <button class="btn btn-blue" id="checkout-btn" style="width:100%;justify-content:center;margin-top:14px;">${icSvg('check',14)} Verbindlich bestellen</button>
+      <button class="btn btn-outline" id="clear-cart-btn" style="width:100%;justify-content:center;margin-top:9px;">Warenkorb leeren</button>
+      <p style="font-size:11.5px;color:var(--gray-500);margin:12px 0 0;">Mit dem Klick auf "Verbindlich bestellen" bestellst du die oben aufgeführten Leistungen verbindlich. Du erhältst Offerte &amp; Rechnung per E-Mail; bestellte Leads werden separat für dich zusammengestellt und in "Meine Aufträge" bereitgestellt.</p>
+    </div>
   `;
 }
 
@@ -2934,6 +2968,25 @@ function attachPageHandlers(){
       if(input) input.value = Math.max(min, parseInt(input.value,10) - 1);
     });
   });
+  document.querySelectorAll('[data-cart-plus]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const item = cart.find(c=>c.key===btn.dataset.cartPlus);
+      if(item) setCartQty(item.key, item.quantity+1);
+    });
+  });
+  document.querySelectorAll('[data-cart-minus]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const item = cart.find(c=>c.key===btn.dataset.cartMinus);
+      if(item) setCartQty(item.key, item.quantity-1);
+    });
+  });
+  document.querySelectorAll('[data-cart-remove]').forEach(btn=>{
+    btn.addEventListener('click', ()=> removeFromCart(btn.dataset.cartRemove));
+  });
+  const checkoutBtn = document.getElementById('checkout-btn');
+  if(checkoutBtn) checkoutBtn.addEventListener('click', checkoutCart);
+  const clearCartBtn = document.getElementById('clear-cart-btn');
+  if(clearCartBtn) clearCartBtn.addEventListener('click', ()=>{ clearCart(); render(); });
 
   const topupBtn = document.getElementById('topup-btn');
   if(topupBtn) topupBtn.addEventListener('click', topUpBudget);
