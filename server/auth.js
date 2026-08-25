@@ -42,6 +42,11 @@ function publicUser(row) {
     email: row.email,
     branche: row.branche || '',
     typkunde: row.typkunde || '',
+    street: row.street || '',
+    zip: row.zip || '',
+    city: row.city || '',
+    country: row.country || '',
+    phone: row.phone || '',
     createdAt: row.created_at,
     isAdmin: isAdminEmail(row.email),
   };
@@ -168,6 +173,11 @@ router.patch('/me', requireAuth, async (req, res, next) => {
     if (typeof req.body.company === 'string' && req.body.company.trim()) fields.company = req.body.company.trim();
     if (typeof req.body.branche === 'string') fields.branche = req.body.branche.trim();
     if (typeof req.body.typkunde === 'string') fields.typkunde = req.body.typkunde.trim();
+    if (typeof req.body.street === 'string') fields.street = req.body.street.trim();
+    if (typeof req.body.zip === 'string') fields.zip = req.body.zip.trim();
+    if (typeof req.body.city === 'string') fields.city = req.body.city.trim();
+    if (typeof req.body.country === 'string') fields.country = req.body.country.trim();
+    if (typeof req.body.phone === 'string') fields.phone = req.body.phone.trim();
 
     const keys = Object.keys(fields);
     if (keys.length) {

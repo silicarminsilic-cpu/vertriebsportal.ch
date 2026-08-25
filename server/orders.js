@@ -66,6 +66,35 @@ function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function resolveBilling(raw) {
+  const b = raw && typeof raw === 'object' ? raw : {};
+  const street = String(b.street || '').trim();
+  const zip = String(b.zip || '').trim();
+  const city = String(b.city || '').trim();
+  const country = String(b.country || '').trim() || 'Schweiz';
+  const phone = String(b.phone || '').trim();
+  if (!street || !zip || !city || !phone) {
+    return { error: 'Bitte Adresse (Strasse, PLZ, Ort) und Handynummer für die Rechnung angeben.' };
+  }
+  return { street, zip, city, country, phone };
+}
+
+// Baut das Adress-/Kontaktobjekt für die PDF-Erzeugung: Name/Firma/E-Mail vom
+// Nutzerkonto, Adresse/Telefon als Schnappschuss vom Bestellzeitpunkt (Order),
+// damit spätere Adressänderungen alte Rechnungen nicht verändern.
+function buildCustomer(user, order) {
+  return {
+    name: user.name,
+    company: user.company,
+    email: user.email,
+    street: order.billing_street,
+    zip: order.billing_zip,
+    city: order.billing_city,
+    country: order.billing_country,
+    phone: order.billing_phone,
+  };
+}
+
 async function loadOrderWithItems(orderId, userId) {
   const orderRes = await db.query('SELECT * FROM orders WHERE id = $1 AND user_id = $2', [orderId, userId]);
   const order = orderRes.rows[0];
@@ -126,11 +155,21 @@ router.post('/', async (req, res, next) => {
       items.push(resolved);
     }
 
+    const billing = resolveBilling(req.body.billing);
+    if (billing.error) return res.status(400).json({ error: billing.error });
+
     const subtotal = Math.round(items.reduce((s, it) => s + it.total, 0) * 100) / 100;
 
+    // Rechnungsadresse fürs nächste Mal im Profil vormerken.
+    await db.query(
+      'UPDATE users SET street = $1, zip = $2, city = $3, country = $4, phone = $5 WHERE id = $6',
+      [billing.street, billing.zip, billing.city, billing.country, billing.phone, req.user.id]
+    );
+
     const orderInsert = await db.query(
-      `INSERT INTO orders (user_id, status, subtotal, currency) VALUES ($1, 'Bestellung eingegangen', $2, 'CHF') RETURNING *`,
-      [req.user.id, subtotal]
+      `INSERT INTO orders (user_id, status, subtotal, currency, billing_street, billing_zip, billing_city, billing_country, billing_phone)
+       VALUES ($1, 'Bestellung eingegangen', $2, 'CHF', $3, $4, $5, $6, $7) RETURNING *`,
+      [req.user.id, subtotal, billing.street, billing.zip, billing.city, billing.country, billing.phone]
     );
     const orderRow = orderInsert.rows[0];
 
@@ -150,10 +189,11 @@ router.post('/', async (req, res, next) => {
     let order = await loadOrderWithItems(orderRow.id, req.user.id);
 
     let emailSent = false;
+    const customer = buildCustomer(req.user, order);
     try {
       const [offerPdf, invoicePdf] = await Promise.all([
-        buildOfferPdf(order, req.user),
-        buildInvoicePdf(order, req.user),
+        buildOfferPdf(order, customer),
+        buildInvoicePdf(order, customer),
       ]);
 
       const itemLines = order.items.map((it) => `- ${it.title} (${it.quantity}x): CHF ${Number(it.total).toFixed(2)}`).join('\n');
@@ -214,7 +254,7 @@ router.get('/:id/offer.pdf', async (req, res, next) => {
   try {
     const order = await loadOrderWithItems(req.params.id, req.user.id);
     if (!order) return res.status(404).json({ error: 'Beleg nicht gefunden.' });
-    const pdf = await buildOfferPdf(order, req.user);
+    const pdf = await buildOfferPdf(order, buildCustomer(req.user, order));
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="Offerte-${order.offer_number}.pdf"`);
     res.send(pdf);
@@ -225,7 +265,7 @@ router.get('/:id/invoice.pdf', async (req, res, next) => {
   try {
     const order = await loadOrderWithItems(req.params.id, req.user.id);
     if (!order) return res.status(404).json({ error: 'Beleg nicht gefunden.' });
-    const pdf = await buildInvoicePdf(order, req.user);
+    const pdf = await buildInvoicePdf(order, buildCustomer(req.user, order));
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="Rechnung-${order.invoice_number}.pdf"`);
     res.send(pdf);

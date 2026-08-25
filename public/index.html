@@ -1014,7 +1014,7 @@ let orders = [];
 let cart = [];
 let currentPage = "dashboard";
 let wizardStep = 1;
-let wizardData = { typkunde:null, branche:null, ziel:"", anzahl:"", zeitraum:"", zusatz:[], firma:"", website:"", region:"", budget:"", briefing:"" };
+let wizardData = { typkunde:null, branche:null, ziel:"", anzahl:"", zeitraum:"", zusatz:[], firma:"", website:"", region:"", budget:"", briefing:"", billing:null };
 
 const TYPKUNDEN = [
   {id:"Privatkunden", code:"PK", sub:"Endkunden (B2C)"},
@@ -1084,7 +1084,7 @@ let appointments = [];
 let serviceTab = 'Alle';
 let campaignTab = 'Pakete';
 let auftragTab = 'uebersicht';
-let userProfile = { name:'Max Mustermann', email:'max@mustermann-beratung.ch', company:'Max Mustermann Beratung', branche:'', typkunde:'', isAdmin:false };
+let userProfile = { name:'Max Mustermann', email:'max@mustermann-beratung.ch', company:'Max Mustermann Beratung', branche:'', typkunde:'', street:'', zip:'', city:'', country:'', phone:'', isAdmin:false };
 
 /* =====================================================================
    STORAGE HELPERS
@@ -1110,8 +1110,8 @@ async function loadOrders(){
     orders = apiOrders.map(apiOrderToLocal);
   }catch(e){ console.warn('Aufträge konnten nicht geladen werden', e); orders = []; }
 }
-async function createOrder(items){
-  const { order, emailSent } = await api('/orders', {method:'POST', body:{items}});
+async function createOrder(items, billing){
+  const { order, emailSent } = await api('/orders', {method:'POST', body:{items, billing}});
   await loadOrders();
   return { order, emailSent };
 }
@@ -1168,11 +1168,17 @@ function updateCartBadge(){
 }
 async function checkoutCart(){
   if(!cart.length){ showToast('Dein Warenkorb ist leer.'); return; }
+  const billing = collectBillingForm('billing');
+  if(!billingComplete(billing)){
+    showToast('Bitte Adresse (Strasse, PLZ, Ort) und Handynummer angeben.');
+    return;
+  }
   const btn = document.getElementById('checkout-btn');
   if(btn){ btn.disabled = true; btn.textContent = 'Wird bestellt…'; }
   try{
     const items = cart.map(c=>({category:c.category, productId:c.productId, quantity:c.quantity}));
-    await createOrder(items);
+    await createOrder(items, billing);
+    userProfile = { ...userProfile, ...billing };
     clearCart();
     updateCartBadge();
     showToast(`Bestellung eingegangen – Offerte & Rechnung wurden an ${userProfile.email} gesendet`);
@@ -1196,12 +1202,23 @@ async function saveAppointments(){
   catch(e){ console.warn('Speichern fehlgeschlagen', e); }
 }
 
+function profileToPatchBody(){
+  return {
+    name: userProfile.name, company: userProfile.company, branche: userProfile.branche, typkunde: userProfile.typkunde,
+    street: userProfile.street, zip: userProfile.zip, city: userProfile.city, country: userProfile.country, phone: userProfile.phone
+  };
+}
+function applyUserToProfile(user){
+  userProfile = {
+    name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde,
+    street:user.street||'', zip:user.zip||'', city:user.city||'', country:user.country||'', phone:user.phone||'',
+    isAdmin:!!user.isAdmin
+  };
+}
 async function saveUserProfile(){
   try{
-    const { user } = await api('/auth/me', {method:'PATCH', body:{
-      name: userProfile.name, company: userProfile.company, branche: userProfile.branche, typkunde: userProfile.typkunde
-    }});
-    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde, isAdmin:!!user.isAdmin };
+    const { user } = await api('/auth/me', {method:'PATCH', body:profileToPatchBody()});
+    applyUserToProfile(user);
   }catch(e){ console.warn('Profil konnte nicht gespeichert werden', e); }
 }
 
@@ -1330,7 +1347,7 @@ document.getElementById('login-form').addEventListener('submit', async function(
   err.style.display = 'none';
   try{
     const { user } = await api('/auth/login', {method:'POST', body:{email, password:pass}});
-    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde, isAdmin:!!user.isAdmin };
+    applyUserToProfile(user);
     await enterApp();
   }catch(ex){
     err.textContent = ex.message;
@@ -1364,7 +1381,7 @@ document.getElementById('register-form').addEventListener('submit', async functi
   err.style.display = 'none';
   try{
     const { user } = await api('/auth/register', {method:'POST', body:{name, company, email, password:pass}});
-    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde, isAdmin:!!user.isAdmin };
+    applyUserToProfile(user);
     orders = []; appointments = [];
     await enterApp();
     showToast(`Willkommen, ${name}! Dein Konto wurde erstellt.`);
@@ -1420,7 +1437,7 @@ function navigate(page, opts){
   currentPage = page;
   if(page === 'neuer-auftrag'){
     if(opts.preserveWizard){ auftragTab = 'wizard'; }
-    else { auftragTab = 'uebersicht'; wizardStep = 1; wizardData = { typkunde:null, branche:null, ziel:"", anzahl:"", zeitraum:"", zusatz:[], firma:"", website:"", region:"", budget:"", briefing:"" }; }
+    else { auftragTab = 'uebersicht'; wizardStep = 1; wizardData = { typkunde:null, branche:null, ziel:"", anzahl:"", zeitraum:"", zusatz:[], firma:"", website:"", region:"", budget:"", briefing:"", billing:null }; }
   }
   document.querySelectorAll('.nav-item[data-page]').forEach(b=> b.classList.toggle('active', b.dataset.page===page));
   const meta = PAGE_META[page] || {title:"", sub:""};
@@ -1793,6 +1810,33 @@ function selectField(id,label,options,val){
     </select></div>`;
 }
 
+function billingFormHtml(prefix){
+  const b = userProfile;
+  return `
+    <div class="field"><label>Strasse &amp; Hausnummer</label><input id="${prefix}-street" placeholder="z. B. Bahnhofstrasse 1" value="${escapeAttr(b.street)}"></div>
+    <div class="form-grid">
+      <div class="field"><label>PLZ</label><input id="${prefix}-zip" placeholder="z. B. 8001" value="${escapeAttr(b.zip)}"></div>
+      <div class="field"><label>Ort</label><input id="${prefix}-city" placeholder="z. B. Zürich" value="${escapeAttr(b.city)}"></div>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Land</label><input id="${prefix}-country" placeholder="Schweiz" value="${escapeAttr(b.country)}"></div>
+      <div class="field"><label>Handynummer</label><input id="${prefix}-phone" type="tel" placeholder="z. B. 079 123 45 67" value="${escapeAttr(b.phone)}"></div>
+    </div>
+  `;
+}
+function collectBillingForm(prefix){
+  return {
+    street: valOf(`${prefix}-street`),
+    zip: valOf(`${prefix}-zip`),
+    city: valOf(`${prefix}-city`),
+    country: valOf(`${prefix}-country`),
+    phone: valOf(`${prefix}-phone`),
+  };
+}
+function billingComplete(b){
+  return !!(b && b.street && b.zip && b.city && b.phone);
+}
+
 function wizardStep2(){
   const zusatzOptions = ["Landingpage / Website","E-Mail Kampagne","Anzeigen (Google / Social Media)","Tracking & Auswertung","Grafik & Design","Sonstiges"];
   return `
@@ -1832,6 +1876,9 @@ function wizardStep3(){
     <textarea id="w-briefing" rows="5" style="width:100%;padding:11px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-md);font-size:13.5px;resize:vertical;" placeholder="Beschreibe dein Projekt, deine Zielgruppe und was du erreichen möchtest…">${escapeHtml(wizardData.briefing)}</textarea>
     <div class="section-label">Dateien hochladen (optional)</div>
     <div class="dropzone">${icSvg('upload',20)}<strong>Dateien hier ablegen oder auswählen</strong><br>z. B. Logos, Broschüren, Bilder</div>
+    <div class="section-label">Rechnungsadresse</div>
+    <p class="desc" style="margin-top:-8px;">Damit wir dir Offerte &amp; Rechnung korrekt ausstellen können.</p>
+    ${billingFormHtml('w')}
   `;
 }
 
@@ -1859,6 +1906,11 @@ function wizardStep4(){
       <div class="review-line"><span>Budget</span><span>${wizardData.budget || '–'}</span></div>
       <div class="review-line"><span>Briefing</span><span>${wizardData.briefing ? escapeHtml(wizardData.briefing).slice(0,90)+(wizardData.briefing.length>90?'…':'') : '–'}</span></div>
     </div>
+    <div class="review-box">
+      <div class="rb-title">Rechnungsadresse</div>
+      <div class="review-line"><span>Adresse</span><span>${wizardData.billing ? escapeHtml(`${wizardData.billing.street}, ${wizardData.billing.zip} ${wizardData.billing.city}`) : '–'}</span></div>
+      <div class="review-line"><span>Handynummer</span><span>${wizardData.billing ? escapeHtml(wizardData.billing.phone) : '–'}</span></div>
+    </div>
   `;
 }
 
@@ -1874,6 +1926,7 @@ function collectStepData(){
     wizardData.region = valOf('w-region');
     wizardData.budget = valOf('w-budget');
     wizardData.briefing = valOf('w-briefing');
+    wizardData.billing = collectBillingForm('w');
   }
 }
 function valOf(id){ const el = document.getElementById(id); return el ? el.value.trim() : ''; }
@@ -1887,6 +1940,7 @@ function validateStep(){
   }
   if(wizardStep===3){
     if(!wizardData.firma || !wizardData.region || !wizardData.budget || !wizardData.briefing){ showToast('Bitte fülle alle Pflichtfelder aus.'); return false; }
+    if(!billingComplete(wizardData.billing)){ showToast('Bitte Adresse (Strasse, PLZ, Ort) und Handynummer angeben.'); return false; }
   }
   return true;
 }
@@ -1895,7 +1949,8 @@ async function submitOrder(){
   const wizNext = document.getElementById('wiz-next');
   if(wizNext){ wizNext.disabled = true; wizNext.textContent = 'Wird gesendet…'; }
   try{
-    await createOrder([{ category:'individuell', ...wizardData }]);
+    await createOrder([{ category:'individuell', ...wizardData }], wizardData.billing);
+    userProfile = { ...userProfile, ...wizardData.billing };
     showToast(`Angebot & Rechnung wurden an ${userProfile.email} gesendet`);
     navigate('meine-auftraege');
   }catch(ex){
@@ -1937,7 +1992,7 @@ function bookService(serviceId){
 
 function useTemplate(typkunde, branche){
   wizardStep = 1;
-  wizardData = { typkunde, branche, ziel:"", anzahl:"", zeitraum:"", zusatz:[], firma:"", website:"", region:"", budget:"", briefing:"" };
+  wizardData = { typkunde, branche, ziel:"", anzahl:"", zeitraum:"", zusatz:[], firma:"", website:"", region:"", budget:"", briefing:"", billing:null };
   navigate('neuer-auftrag', {preserveWizard:true});
   showToast('Vorlage übernommen – bitte Angaben prüfen');
 }
@@ -2199,12 +2254,21 @@ function renderWarenkorb(){
         <tbody>${cart.map(cartRow).join('')}</tbody>
       </table>
     </div>
-    <div class="panel" style="max-width:420px;margin-top:16px;margin-left:auto;padding:18px 20px;">
-      <div class="review-line"><span>Zwischensumme</span><span>CHF ${fmtMoney(total)}</span></div>
-      <div class="review-line"><span>zzgl. MWST</span><span>wird auf Offerte/Rechnung ausgewiesen</span></div>
-      <button class="btn btn-blue" id="checkout-btn" style="width:100%;justify-content:center;margin-top:14px;">${icSvg('check',14)} Verbindlich bestellen</button>
-      <button class="btn btn-outline" id="clear-cart-btn" style="width:100%;justify-content:center;margin-top:9px;">Warenkorb leeren</button>
-      <p style="font-size:11.5px;color:var(--gray-500);margin:12px 0 0;">Mit dem Klick auf "Verbindlich bestellen" bestellst du die oben aufgeführten Leistungen verbindlich. Du erhältst Offerte &amp; Rechnung per E-Mail; bestellte Leads werden separat für dich zusammengestellt und in "Meine Aufträge" bereitgestellt.</p>
+
+    <div class="grid-2" style="margin-top:16px;align-items:start;">
+      <div class="panel" style="padding:18px 20px;">
+        <div class="section-label" style="margin-top:0;">Rechnungsadresse</div>
+        <p style="color:var(--gray-500);font-size:12px;margin:-6px 0 14px;">Damit wir dir Offerte &amp; Rechnung korrekt ausstellen können.</p>
+        ${billingFormHtml('billing')}
+      </div>
+
+      <div class="panel" style="padding:18px 20px;">
+        <div class="review-line"><span>Zwischensumme</span><span>CHF ${fmtMoney(total)}</span></div>
+        <div class="review-line"><span>zzgl. MWST</span><span>wird auf Offerte/Rechnung ausgewiesen</span></div>
+        <button class="btn btn-blue" id="checkout-btn" style="width:100%;justify-content:center;margin-top:14px;">${icSvg('check',14)} Verbindlich bestellen</button>
+        <button class="btn btn-outline" id="clear-cart-btn" style="width:100%;justify-content:center;margin-top:9px;">Warenkorb leeren</button>
+        <p style="font-size:11.5px;color:var(--gray-500);margin:12px 0 0;">Mit dem Klick auf "Verbindlich bestellen" bestellst du die oben aufgeführten Leistungen verbindlich. Du erhältst Offerte &amp; Rechnung per E-Mail; bestellte Leads werden separat für dich zusammengestellt und in "Meine Aufträge" bereitgestellt.</p>
+      </div>
     </div>
   `;
 }
@@ -2300,6 +2364,9 @@ function renderProfil(){
     <div class="field"><label>Name</label><input id="profile-name" value="${escapeAttr(userProfile.name)}"></div>
     <div class="field"><label>E-Mail (Login, nicht änderbar)</label><input id="profile-email" value="${escapeAttr(userProfile.email)}" disabled style="background:var(--gray-50);color:var(--gray-500);"></div>
     <div class="field"><label>Unternehmen</label><input id="profile-company" value="${escapeAttr(userProfile.company)}"></div>
+    <div class="section-label" style="margin-top:22px;">Rechnungsadresse</div>
+    <p style="color:var(--gray-500);font-size:12.5px;margin:-4px 0 14px;">Wird bei jeder Bestellung für Offerte &amp; Rechnung verwendet und dort vorausgefüllt.</p>
+    ${billingFormHtml('profile')}
     <div class="section-label" style="margin-top:22px;">Vertriebsprofil</div>
     <p style="color:var(--gray-500);font-size:12.5px;margin:-4px 0 14px;">Bestimmt, welche Leads, Kampagnen und Vorlagen dir im Dashboard empfohlen werden.</p>
     <div class="form-grid">
@@ -2516,6 +2583,7 @@ function attachPageHandlers(){
     userProfile.company = valOf('profile-company') || userProfile.company;
     const br = valOf('profile-branche'); if(br) userProfile.branche = br;
     const tk = valOf('profile-typkunde'); if(tk) userProfile.typkunde = tk;
+    userProfile = { ...userProfile, ...collectBillingForm('profile') };
     saveUserProfile();
     updateSidebarUser();
     render();
@@ -2545,7 +2613,7 @@ mountStaticIcons();
 (async function tryResumeSession(){
   try{
     const { user } = await api('/auth/me');
-    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde, isAdmin:!!user.isAdmin };
+    applyUserToProfile(user);
     await enterApp();
   }catch(e){ /* keine gültige Sitzung – Login-Screen bleibt sichtbar */ }
 })();
