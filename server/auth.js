@@ -17,6 +17,15 @@ const EFFECTIVE_SECRET = SESSION_SECRET || 'insecure-dev-secret-do-not-use-in-pr
 const COOKIE_NAME = 'vp_session';
 const COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 Tage
 
+const ADMIN_EMAILS = String(process.env.ADMIN_EMAILS || '')
+  .split(',')
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+function isAdminEmail(email) {
+  return ADMIN_EMAILS.includes(String(email || '').toLowerCase());
+}
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
@@ -34,6 +43,7 @@ function publicUser(row) {
     branche: row.branche || '',
     typkunde: row.typkunde || '',
     createdAt: row.created_at,
+    isAdmin: isAdminEmail(row.email),
   };
 }
 
@@ -59,6 +69,13 @@ async function requireAuth(req, res, next) {
   } catch (e) {
     return res.status(401).json({ error: 'Sitzung abgelaufen. Bitte erneut anmelden.' });
   }
+}
+
+function requireAdmin(req, res, next) {
+  if (!isAdminEmail(req.user.email)) {
+    return res.status(403).json({ error: 'Kein Zugriff.' });
+  }
+  next();
 }
 
 const router = express.Router();
@@ -165,4 +182,4 @@ router.patch('/me', requireAuth, async (req, res, next) => {
   }
 });
 
-module.exports = { router, requireAuth, publicUser };
+module.exports = { router, requireAuth, requireAdmin, publicUser };

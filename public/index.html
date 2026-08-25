@@ -930,7 +930,7 @@
       <button class="nav-item" data-page="profil" data-ic="user"> Profil</button>
       <button class="nav-item" data-page="support" data-ic="help"> Support</button>
       <div class="nav-divider"></div>
-      <button class="nav-item" data-page="admin" data-ic="oversight"> Herausgeber-Ansicht</button>
+      <button class="nav-item" id="nav-admin" data-page="admin" data-ic="oversight" style="display:none;"> Herausgeber-Ansicht</button>
       <button class="nav-item" id="logout-btn" data-ic="logout"> Abmelden</button>
     </nav>
     <div class="sidebar-user">
@@ -1090,7 +1090,7 @@ let appointments = [];
 let serviceTab = 'Alle';
 let campaignTab = 'Pakete';
 let auftragTab = 'uebersicht';
-let userProfile = { name:'Max Mustermann', email:'max@mustermann-beratung.ch', company:'Max Mustermann Beratung', branche:'', typkunde:'' };
+let userProfile = { name:'Max Mustermann', email:'max@mustermann-beratung.ch', company:'Max Mustermann Beratung', branche:'', typkunde:'', isAdmin:false };
 
 /* =====================================================================
    STORAGE HELPERS
@@ -1208,56 +1208,29 @@ async function saveUserProfile(){
     const { user } = await api('/auth/me', {method:'PATCH', body:{
       name: userProfile.name, company: userProfile.company, branche: userProfile.branche, typkunde: userProfile.typkunde
     }});
-    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde };
+    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde, isAdmin:!!user.isAdmin };
   }catch(e){ console.warn('Profil konnte nicht gespeichert werden', e); }
 }
 
 /* =====================================================================
-   HERAUSGEBER-ANSICHT — geteilte Registry für Nutzer & Zahlungen
-   Hinweis: window.storage(shared:true) ist Claude's Vorschau-Speicher,
-   kein echtes, gesichertes Backend. Für den Live-Betrieb braucht es eine
-   echte Datenbank mit Zugriffsschutz.
+   HERAUSGEBER-ANSICHT — nur für Admin-Konten (ADMIN_EMAILS), echte Daten
 ===================================================================== */
 let adminUsers = [];
-let adminTransactions = [];
+let adminOrders = [];
+let adminAccessDenied = false;
 
-async function loadAdminUsers(){
-  try{
-    const res = await window.storage.get('vertriebsportal:admin:users', true);
-    adminUsers = (res && res.value) ? JSON.parse(res.value) : [];
-  }catch(e){ adminUsers = adminUsers || []; }
-}
-async function saveAdminUsers(){
-  try{ await window.storage.set('vertriebsportal:admin:users', JSON.stringify(adminUsers), true); }
-  catch(e){ console.warn('Speichern fehlgeschlagen', e); }
-}
-async function loadAdminTransactions(){
-  try{
-    const res = await window.storage.get('vertriebsportal:admin:transactions', true);
-    adminTransactions = (res && res.value) ? JSON.parse(res.value) : [];
-  }catch(e){ adminTransactions = adminTransactions || []; }
-}
-async function saveAdminTransactions(){
-  try{ await window.storage.set('vertriebsportal:admin:transactions', JSON.stringify(adminTransactions), true); }
-  catch(e){ console.warn('Speichern fehlgeschlagen', e); }
-}
 async function refreshAdminData(){
-  await Promise.all([loadAdminUsers(), loadAdminTransactions()]);
-  if(currentPage === 'admin') render();
-}
-async function logAdminTransaction(desc, amount){
+  adminAccessDenied = false;
   try{
-    const res = await window.storage.get('vertriebsportal:admin:transactions', true);
-    adminTransactions = (res && res.value) ? JSON.parse(res.value) : [];
-  }catch(e){ /* nutze bestehenden Stand als Fallback */ }
-  adminTransactions.unshift({
-    id: Date.now(),
-    date: todayStr(),
-    userName: userProfile.name,
-    userEmail: userProfile.email,
-    desc, amount
-  });
-  saveAdminTransactions();
+    const [usersRes, ordersRes] = await Promise.all([api('/admin/users'), api('/admin/orders')]);
+    adminUsers = usersRes.users;
+    adminOrders = ordersRes.orders;
+  }catch(e){
+    adminUsers = []; adminOrders = [];
+    if(e.status === 403) adminAccessDenied = true;
+    console.warn('Herausgeber-Daten konnten nicht geladen werden', e);
+  }
+  if(currentPage === 'admin') render();
 }
 
 function todayStr(){
@@ -1364,7 +1337,7 @@ document.getElementById('login-form').addEventListener('submit', async function(
   err.style.display = 'none';
   try{
     const { user } = await api('/auth/login', {method:'POST', body:{email, password:pass}});
-    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde };
+    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde, isAdmin:!!user.isAdmin };
     await enterApp();
   }catch(ex){
     err.textContent = ex.message;
@@ -1398,7 +1371,7 @@ document.getElementById('register-form').addEventListener('submit', async functi
   err.style.display = 'none';
   try{
     const { user } = await api('/auth/register', {method:'POST', body:{name, company, email, password:pass}});
-    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde };
+    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde, isAdmin:!!user.isAdmin };
     orders = []; appointments = DEFAULT_APPOINTMENTS.slice();
     await enterApp();
     showToast(`Willkommen, ${name}! Dein Konto wurde erstellt.`);
@@ -1450,6 +1423,7 @@ document.getElementById('topbar-new-btn').addEventListener('click', ()=> navigat
 
 function navigate(page, opts){
   opts = opts || {};
+  if(page === 'admin' && !userProfile.isAdmin) page = 'dashboard';
   currentPage = page;
   if(page === 'neuer-auftrag'){
     if(opts.preserveWizard){ auftragTab = 'wizard'; }
@@ -1499,6 +1473,8 @@ function updateSidebarUser(){
   const avatarEl = document.getElementById('sidebar-avatar');
   if(nameEl) nameEl.textContent = userProfile.name;
   if(avatarEl) avatarEl.textContent = profileInitials();
+  const adminNav = document.getElementById('nav-admin');
+  if(adminNav) adminNav.style.display = userProfile.isAdmin ? '' : 'none';
 }
 function animateStatCards(){
   document.querySelectorAll('.stat-card .value[data-target]').forEach(el=>{
@@ -2341,9 +2317,18 @@ function renderProfil(){
   </div>`;
 }
 function renderAdmin(){
+  if(adminAccessDenied){
+    return `<div class="placeholder">
+      <div class="pic">${icSvg('oversight',26)}</div>
+      <h3>Kein Zugriff</h3>
+      <p>Diese Ansicht ist nur für den Portal-Betreiber freigeschaltet.</p>
+      <button class="btn btn-outline" data-nav="dashboard">Zurück zum Dashboard</button>
+    </div>`;
+  }
+
   const totalUsers = adminUsers.length;
-  const totalRevenue = adminTransactions.filter(t=>t.amount<0).reduce((s,t)=>s+Math.abs(t.amount), 0);
-  const totalTx = adminTransactions.length;
+  const totalRevenue = adminOrders.reduce((s,o)=>s+o.subtotal,0);
+  const totalOrders = adminOrders.length;
   const avgRevenue = totalUsers ? totalRevenue/totalUsers : 0;
 
   return `
@@ -2351,16 +2336,15 @@ function renderAdmin(){
       <div style="display:flex;align-items:flex-start;gap:11px;">
         <div style="color:var(--accent-dark);flex:none;margin-top:1px;">${icSvg('help',16)}</div>
         <div style="font-size:12.5px;color:var(--gray-700);line-height:1.65;">
-          <strong>Demo-Ansicht.</strong> Diese Übersicht zeigt Registrierungen &amp; Zahlungen innerhalb dieses Prototyps (Vorschau-Speicher). Für den echten Betrieb von vertriebsportal.ch braucht es ein eigenes Backend mit gesicherter Authentifizierung, Datenbank und Zahlungsanbindung (z.&nbsp;B. Twint, PostFinance oder Stripe) sowie AGB &amp; Datenschutzerklärung.
-          <a data-nav="support" style="color:var(--accent-dark);font-weight:600;">Dazu beraten lassen →</a>
+          Diese Ansicht ist nur für dich als Portal-Betreiber sichtbar und zeigt alle echten Registrierungen und Bestellungen aus der Datenbank.
         </div>
       </div>
     </div>
 
     <div class="stat-grid">
       ${statCard('users','var(--blue-bg)','var(--blue-fg)','Registrierte Nutzer',totalUsers,'Gesamt', true)}
-      ${statCard('wallet','var(--green-bg)','var(--green-fg)','Gesamtumsatz',fmtMoney(totalRevenue)+' CHF','Alle Käufe')}
-      ${statCard('receipt','var(--violet-bg)','var(--violet-fg)','Transaktionen',totalTx,'Gesamt', true)}
+      ${statCard('wallet','var(--green-bg)','var(--green-fg)','Gesamtumsatz',fmtMoney(totalRevenue)+' CHF','Alle Bestellungen (zzgl. MWST)')}
+      ${statCard('receipt','var(--violet-bg)','var(--violet-fg)','Bestellungen',totalOrders,'Gesamt', true)}
       ${statCard('trendup','var(--amber-bg)','var(--amber-fg)','Ø Umsatz / Nutzer',fmtMoney(avgRevenue)+' CHF','Pro Registrierung')}
     </div>
 
@@ -2377,29 +2361,29 @@ function renderAdmin(){
             <td class="mono-cell">${escapeHtml(u.email)}</td>
             <td>${escapeHtml(u.company||'—')}</td>
             <td>${escapeHtml(u.branche||'—')}</td>
-            <td class="mono-cell">${u.registeredAt}</td>
+            <td class="mono-cell">${new Date(u.createdAt).toLocaleDateString('de-CH')}</td>
           </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:26px;">Noch keine Registrierungen – sobald sich jemand über „Jetzt registrieren" anmeldet, erscheint er hier.</td></tr>`}
         </tbody>
       </table>
     </div>
 
     <div class="section-heading" style="margin-top:26px;">
-      <h2>Zahlungen &amp; Transaktionen</h2>
-      <p>Alle Guthaben-Aufladungen und Käufe, nutzerübergreifend.</p>
+      <h2>Bestellungen</h2>
+      <p>Alle Bestellungen aller Nutzer, neueste zuerst.</p>
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Datum</th><th>Nutzer</th><th>Beschreibung</th><th>Betrag</th></tr></thead>
+        <thead><tr><th>Datum</th><th>Nutzer</th><th>Rechnungs-Nr.</th><th>Status</th><th>Betrag</th></tr></thead>
         <tbody>
-          ${adminTransactions.length ? adminTransactions.slice(0,50).map(t=>`<tr>
-            <td class="mono-cell">${t.date}</td>
-            <td>${escapeHtml(t.userName)}<div style="font-size:11px;color:var(--gray-400);">${escapeHtml(t.userEmail)}</div></td>
-            <td>${escapeHtml(t.desc)}</td>
-            <td class="mono-cell" style="font-weight:600;color:${t.amount<0?'var(--gray-700)':'var(--green-fg)'};">${t.amount<0?'−':'+'} CHF ${fmtMoney(Math.abs(t.amount))}</td>
-          </tr>`).join('') : `<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:26px;">Noch keine Transaktionen.</td></tr>`}
+          ${adminOrders.length ? adminOrders.map(o=>`<tr>
+            <td class="mono-cell">${new Date(o.createdAt).toLocaleDateString('de-CH')}</td>
+            <td>${escapeHtml(o.userName)}<div style="font-size:11px;color:var(--gray-400);">${escapeHtml(o.userEmail)}</div></td>
+            <td class="mono-cell">${escapeHtml(o.invoiceNumber)}</td>
+            <td><span class="tag ${STATUS_STYLE[o.status]||'tag-amber'}"><span class="tdot"></span>${escapeHtml(o.status)}</span></td>
+            <td class="mono-cell" style="font-weight:600;">CHF ${fmtMoney(o.subtotal)}</td>
+          </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:26px;">Noch keine Bestellungen.</td></tr>`}
         </tbody>
       </table>
-      ${adminTransactions.length>50 ? `<div class="table-foot">Zeigt die neuesten 50 von ${adminTransactions.length} Transaktionen.</div>` : ''}
     </div>
   `;
 }
@@ -2568,7 +2552,7 @@ mountStaticIcons();
 (async function tryResumeSession(){
   try{
     const { user } = await api('/auth/me');
-    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde };
+    userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde, isAdmin:!!user.isAdmin };
     await enterApp();
   }catch(e){ /* keine gültige Sitzung – Login-Screen bleibt sichtbar */ }
 })();
