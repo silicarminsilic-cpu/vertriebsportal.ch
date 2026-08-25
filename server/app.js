@@ -6,6 +6,7 @@ const cookieParser = require('cookie-parser');
 const db = require('./db');
 const { router: authRouter } = require('./auth');
 const ordersRouter = require('./orders');
+const adminRouter = require('./admin');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -29,6 +30,7 @@ app.use('/api', async (req, res, next) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/orders', ordersRouter);
+app.use('/api/admin', adminRouter);
 
 app.use('/api', (req, res) => {
   res.status(404).json({ error: 'Nicht gefunden.' });
