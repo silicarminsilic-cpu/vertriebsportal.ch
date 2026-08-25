@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const db = require('./db');
+const { sendMail } = require('./mailer');
 
 const SESSION_SECRET = process.env.SESSION_SECRET;
 if (!SESSION_SECRET || SESSION_SECRET === 'change-me-to-a-long-random-string') {
@@ -91,6 +92,20 @@ router.post('/register', authLimiter, async (req, res, next) => {
     );
     const user = inserted.rows[0];
     issueSession(res, user.id);
+
+    if (process.env.COMPANY_NOTIFY_EMAIL) {
+      try {
+        await sendMail({
+          to: process.env.COMPANY_NOTIFY_EMAIL,
+          subject: `Neue Registrierung: ${name}`,
+          text: `Neues Konto auf vertriebsportal.ch:\n\nName: ${name}\nUnternehmen: ${company}\nE-Mail: ${email}`,
+          html: `<p>Neues Konto auf vertriebsportal.ch:</p><ul><li>Name: ${name}</li><li>Unternehmen: ${company}</li><li>E-Mail: ${email}</li></ul>`,
+        });
+      } catch (err) {
+        console.error('[auth] Registrierungs-Benachrichtigung fehlgeschlagen:', err.message);
+      }
+    }
+
     res.status(201).json({ user: publicUser(user) });
   } catch (err) {
     next(err);
