@@ -526,7 +526,7 @@
   .progress-bar > div{height:100%;background:var(--accent);border-radius:4px;}
   .table-foot{padding:12px 16px;font-size:11.5px;color:var(--gray-400);font-family:var(--font-mono);}
 
-  /* ---------- Wallet mini bar ---------- */
+  /* ---------- Info mini bar (cart summary) ---------- */
   .wallet-mini{
     display:flex;align-items:center;justify-content:space-between;gap:10px;
     background:var(--accent-tint);border:1px solid var(--accent-line);border-radius:var(--radius-md);
@@ -534,19 +534,6 @@
   }
   .wallet-mini .wm-left{display:flex;align-items:center;gap:8px;}
   .wallet-mini strong{font-family:var(--font-mono);}
-
-  /* ---------- Wallet hero (Budget page) ---------- */
-  .wallet-hero{
-    background:
-      radial-gradient(420px 220px at 100% 0%, rgba(255,255,255,.14), transparent 60%),
-      linear-gradient(135deg, var(--ink-900) 0%, var(--accent-deep) 130%);
-    color:#fff;border-radius:var(--radius-lg);
-    padding:25px 27px;display:flex;align-items:center;justify-content:space-between;
-    box-shadow:0 14px 30px -12px rgba(10,80,120,.4);
-  }
-  .wallet-hero .wh-label{font-size:12px;color:#aac6e8;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;}
-  .wallet-hero .wh-value{font-size:33px;font-weight:700;font-family:var(--font-mono);letter-spacing:-.01em;}
-  .wallet-hero svg{color:#5c8ac4;}
 
   /* ---------- Shop grid (Leads / Kampagnen / Services) ---------- */
   .shop-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
@@ -576,9 +563,6 @@
   /* ---------- Termine option cards ---------- */
   .option-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
   @media (max-width:820px){.option-cards{grid-template-columns:1fr;}}
-
-  /* ---------- Topbar balance pill ---------- */
-  #topbar-balance-btn{white-space:nowrap;}
 
   /* ---------- Simple placeholder page ---------- */
   .placeholder{
@@ -622,97 +606,6 @@
   .live-dot::after{
     content:"";position:absolute;inset:-4px;border-radius:50%;border:1.5px solid #6cd6a8;
     animation:pulseRing 2.2s ease-out infinite;
-  }
-
-  /* ---------- Goal / motivation panel ---------- */
-  .goal-panel{
-    background:
-      radial-gradient(420px 200px at 100% -10%, rgba(255,255,255,.14), transparent 60%),
-      linear-gradient(135deg, var(--ink-900) 0%, var(--accent-deep) 130%);
-    border-radius:var(--radius-lg);padding:20px 22px;color:#fff;
-    box-shadow:0 14px 28px -14px rgba(7,79,155,.45);
-  }
-  .goal-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:15px;flex-wrap:wrap;}
-  .goal-label{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#bcd6ef;}
-  .goal-copy{font-family:var(--font-display);font-size:17px;font-weight:600;margin-top:7px;color:#fff;letter-spacing:-.005em;}
-  .goal-count{font-family:var(--font-mono);font-size:23px;font-weight:700;white-space:nowrap;text-align:right;}
-  .goal-count-sub{font-size:11px;color:#a9c8ea;margin-top:2px;text-align:right;}
-  .goal-bar-track{height:8px;background:rgba(255,255,255,.16);border-radius:6px;overflow:hidden;}
-  .goal-bar-fill{height:100%;background:linear-gradient(90deg,#8fbdf0,#ffffff);border-radius:6px;transition:width .7s cubic-bezier(.16,1,.3,1);}
-
-  /* ---------- Funnel mini (dashboard pipeline snapshot) ---------- */
-  .funnel-mini{display:flex;gap:3px;height:36px;border-radius:8px;overflow:hidden;margin-bottom:12px;}
-  .funnel-seg{
-    display:flex;align-items:center;justify-content:center;color:#fff;
-    font-size:11.5px;font-weight:700;font-family:var(--font-mono);
-    min-width:28px;transition:flex-grow .3s;
-  }
-  .funnel-legend{display:flex;flex-wrap:wrap;gap:9px 18px;font-size:11.5px;color:var(--gray-500);}
-  .funnel-legend span{display:inline-flex;align-items:center;gap:6px;}
-  .funnel-legend .dot{width:7px;height:7px;border-radius:50%;flex:none;}
-
-  /* ---------- Pipeline / Kanban ---------- */
-  .pipe-hint{font-size:12px;color:var(--gray-400);margin:14px 0 2px;display:flex;align-items:center;gap:5px;}
-  .pipe-hint .icn{color:var(--gray-400);}
-  .pipe-cols{display:flex;gap:14px;overflow-x:auto;padding:4px 2px 10px;margin-top:10px;}
-  .pipe-col{
-    flex:0 0 268px;display:flex;flex-direction:column;
-    background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-lg);
-  }
-  .pipe-col-head{padding:13px 14px 11px;border-bottom:1px solid var(--gray-200);}
-  .pipe-col-title{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--gray-800);}
-  .pipe-col-dot{width:8px;height:8px;border-radius:50%;flex:none;}
-  .pipe-col-meta{font-size:11px;color:var(--gray-500);margin-top:4px;font-family:var(--font-mono);}
-  .pipe-dropzone{
-    max-height:540px;overflow-y:auto;padding:10px;
-    display:flex;flex-direction:column;gap:9px;
-    border-radius:0 0 var(--radius-lg) var(--radius-lg);
-    transition:background .12s;
-  }
-  .pipe-dropzone.drag-over{background:var(--accent-tint);}
-  .pipe-empty{padding:22px 8px;text-align:center;color:var(--gray-400);font-size:11.5px;border:1.5px dashed var(--gray-300);border-radius:var(--radius-md);}
-
-  @keyframes cardIn{
-    from{opacity:0;transform:translateY(8px) scale(.98);}
-    to{opacity:1;transform:translateY(0) scale(1);}
-  }
-  .pipe-card{
-    background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius-md);
-    padding:12px 13px;cursor:grab;box-shadow:var(--shadow-card);
-    animation:cardIn .32s ease both;animation-delay:calc(var(--d, 0) * 45ms);
-    transition:box-shadow .15s,transform .15s,opacity .15s,border-color .15s;
-  }
-  .pipe-card:hover{box-shadow:var(--shadow-card-hover);transform:translateY(-1px);border-color:var(--accent-line);}
-  .pipe-card.dragging{opacity:.4;cursor:grabbing;}
-  .pipe-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;}
-  .pipe-avatar{
-    width:24px;height:24px;border-radius:50%;background:var(--accent-grad);color:#fff;
-    font-size:10px;font-weight:700;font-family:var(--font-mono);
-    display:flex;align-items:center;justify-content:center;flex:none;
-  }
-  .pipe-value{font-family:var(--font-mono);font-size:11.5px;font-weight:600;color:var(--gray-700);}
-  .pipe-name{font-size:13px;font-weight:600;color:var(--gray-900);margin-bottom:2px;line-height:1.3;}
-  .pipe-sub{font-size:11.5px;color:var(--gray-500);margin-bottom:10px;}
-  .pipe-card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:9px;border-top:1px solid var(--gray-100);}
-  .pipe-source{font-size:10.5px;color:var(--gray-400);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .pipe-advance{
-    width:22px;height:22px;border-radius:50%;border:none;background:var(--accent-tint);color:var(--accent-dark);
-    display:flex;align-items:center;justify-content:center;flex:none;
-    transition:background .12s,transform .12s,color .12s;
-  }
-  .pipe-advance:hover{background:var(--accent-grad);color:#fff;transform:scale(1.1);}
-  .pipe-done{
-    width:22px;height:22px;border-radius:50%;background:var(--green-bg);color:var(--green-fg);
-    display:flex;align-items:center;justify-content:center;flex:none;
-  }
-
-  /* ---------- Confetti ---------- */
-  .confetti-piece{
-    position:fixed;top:-14px;width:8px;height:14px;pointer-events:none;z-index:200;
-    border-radius:2px;animation:confettiFall linear forwards;
-  }
-  @keyframes confettiFall{
-    to{transform:translateY(112vh) rotate(560deg);opacity:.2;}
   }
 
   /* ---------- Focus panel (Branche/Zielgruppe) ---------- */
@@ -1024,7 +917,6 @@
       <button class="nav-item" data-page="dashboard" data-ic="grid"> Dashboard</button>
       <button class="nav-item" data-page="neuer-auftrag" data-ic="plus"> Neuer Auftrag</button>
       <button class="nav-item" data-page="meine-auftraege" data-ic="clipboard"> Meine Aufträge</button>
-      <button class="nav-item" data-page="pipeline" data-ic="pipeline"> Pipeline<span class="nav-badge" id="nav-badge-pipeline"></span></button>
       <div class="nav-divider"></div>
       <button class="nav-item" data-page="leads-kaufen" data-ic="cart"> Leads kaufen</button>
       <button class="nav-item" data-page="kampagnen-kaufen" data-ic="megaphone"> Kampagnen kaufen</button>
@@ -1032,7 +924,6 @@
       <button class="nav-item" data-page="marketingservices" data-ic="briefcase"> Marketingservices</button>
       <button class="nav-item" data-page="warenkorb" data-ic="cart"> Warenkorb<span class="nav-badge" id="nav-badge-cart"></span></button>
       <div class="nav-divider"></div>
-      <button class="nav-item" data-page="budget" data-ic="wallet"> Budget</button>
       <button class="nav-item" data-page="termine" data-ic="calendar"> Termine</button>
       <button class="nav-item" data-page="rechnungen" data-ic="receipt"> Rechnungen</button>
       <div class="nav-divider"></div>
@@ -1061,7 +952,6 @@
         </div>
       </div>
       <div class="topbar-actions">
-        <button class="btn btn-outline" id="topbar-balance-btn"><span class="icn-slot" data-ic="wallet" data-size="14"></span> <span id="topbar-balance" class="btn-label">CHF 0.00</span></button>
         <button class="icon-btn" id="bell-btn"><span class="dot"></span></button>
         <button class="btn btn-blue" id="topbar-new-btn"><span class="icn-slot" data-ic="plus" data-size="15"></span> <span class="btn-label">Neuer Auftrag</span></button>
       </div>
@@ -1144,38 +1034,7 @@ const BRANCHEN = [
 ];
 
 /* =====================================================================
-   PIPELINE — Leads von der Anfrage bis zur Registrierung
-===================================================================== */
-const STAGE_DEFS = [
-  {key:'neu',         label:'Neue Leads',   fg:'var(--blue-fg)',   bg:'var(--blue-bg)',   bar:'#4b94e3'},
-  {key:'kontaktiert', label:'Kontaktiert',  fg:'var(--amber-fg)',  bg:'var(--amber-bg)',  bar:'#d99a2b'},
-  {key:'qualifiziert',label:'Qualifiziert', fg:'var(--violet-fg)', bg:'var(--violet-bg)', bar:'#7c6cc4'},
-  {key:'angebot',     label:'Angebot',      fg:'var(--teal-fg)',   bg:'var(--teal-bg)',   bar:'#12a08d'},
-  {key:'registriert', label:'Registriert',  fg:'var(--green-fg)',  bg:'var(--green-bg)',  bar:'#1f7a4d'},
-];
-const MONTHLY_GOAL = 20;
-
-const DEFAULT_PIPELINE = [
-  {id:101, name:'Sandra Frick', branche:'Immobilien', typkunde:'Immobilienkäufer', value:3200, stage:'neu', source:'Immobilien-Käufer-Leads'},
-  {id:102, name:'Michael Beck', branche:'Finanzen & Bank', typkunde:'Privatkunden', value:1800, stage:'neu', source:'Hypotheken-Leads'},
-  {id:103, name:'Laura Good', branche:'Versicherungen', typkunde:'Privatkunden', value:950, stage:'neu', source:'Krankenkassen-Leads'},
-  {id:104, name:'Peter Amann', branche:'Krypto', typkunde:'Unternehmer', value:4500, stage:'neu', source:'Krypto-Trading-Leads'},
-  {id:105, name:'Nicole Wachter', branche:'Edelmetalle', typkunde:'Investoren', value:6200, stage:'kontaktiert', source:'Edelmetall-Investment-Leads'},
-  {id:106, name:'Thomas Rüegg', branche:'Finanzen & Bank', typkunde:'Privatkunden', value:2100, stage:'kontaktiert', source:'Hypotheken-Leads'},
-  {id:107, name:'Julia Vogt', branche:'Immobilien', typkunde:'Immobilienkäufer', value:3800, stage:'kontaktiert', source:'Immobilien-Käufer-Leads'},
-  {id:108, name:'Daniel Marxer', branche:'Versicherungen', typkunde:'Unternehmer', value:5400, stage:'qualifiziert', source:'KMU-Versicherungs-Leads'},
-  {id:109, name:'Melanie Frei', branche:'Krypto', typkunde:'Unternehmer', value:3100, stage:'qualifiziert', source:'Krypto-Trading-Leads'},
-  {id:110, name:'Roger Hasler', branche:'Finanzen & Bank', typkunde:'Privatkunden', value:2650, stage:'qualifiziert', source:'Hypotheken-Leads'},
-  {id:111, name:'Claudia Nigg', branche:'Edelmetalle', typkunde:'Investoren', value:8900, stage:'angebot', source:'Edelmetall-Investment-Leads'},
-  {id:112, name:'Stefan Büchel', branche:'Immobilien', typkunde:'Immobilienkäufer', value:4950, stage:'angebot', source:'Immobilien-Käufer-Leads'},
-  {id:113, name:'Andrea Kaiser', branche:'Versicherungen', typkunde:'Privatkunden', value:1250, stage:'registriert', source:'Krankenkassen-Leads'},
-  {id:114, name:'Marco Elkuch', branche:'Finanzen & Bank', typkunde:'Unternehmer', value:7300, stage:'registriert', source:'Hypotheken-Leads'},
-  {id:115, name:'Verena Batliner', branche:'Immobilien', typkunde:'Immobilienkäufer', value:5600, stage:'registriert', source:'Immobilien-Käufer-Leads'},
-  {id:116, name:'Christian Oehri', branche:'Krypto', typkunde:'Unternehmer', value:3900, stage:'registriert', source:'Krypto-Trading-Leads'},
-];
-
-/* =====================================================================
-   MARKTPLATZ — Leads / Kampagnen / Services / Budget / Termine
+   MARKTPLATZ — Leads / Kampagnen / Services / Termine
 ===================================================================== */
 const LEAD_PRODUCTS = [
   {id:'lp1', branche:'Versicherungen', typkunde:'Privatkunden', name:'Krankenkassen-Leads', price:35, minQty:10, desc:'Frisch generierte, geprüfte Anfragen von Privatpersonen zum Krankenkassenwechsel.'},
@@ -1221,21 +1080,13 @@ const SERVICES = [
   {id:'sv8', cat:'Video', name:'Video-Produktion', price:980, unit:'Pauschal', desc:'Kurzes Werbevideo für Social Media und Ads-Kampagnen.'},
 ];
 
-const DEFAULT_WALLET = { balance:3700, history:[
-  {date:'10.08.2026', desc:'Budget eingesetzt: Krankenkasse Kampagne – Werbebudget erhöhen', amount:-300, balanceAfter:3700},
-  {date:'08.08.2026', desc:'Buchung: Grafikdesign-Paket', amount:-450, balanceAfter:4000},
-  {date:'05.08.2026', desc:'Kauf: Hypotheken-Leads (10x)', amount:-550, balanceAfter:4450},
-  {date:'01.08.2026', desc:'Guthaben aufgeladen', amount:5000, balanceAfter:5000},
-]};
 const DEFAULT_APPOINTMENTS = [
   {id:1, title:'Kickoff Krankenkasse Kampagne', date:'21.08.2026', time:'14:30', type:'team', status:'Bestätigt'},
   {id:2, title:'Strategiegespräch – Hypotheken-Leads', date:'18.08.2026', time:'10:00', type:'team', status:'Bestätigt'},
   {id:3, title:'Interner Check-in Immobilien', date:'25.08.2026', time:'09:00', type:'eigen', status:'Eingetragen'},
 ];
 
-let wallet = { balance:0, history:[] };
 let appointments = [];
-let pipelineLeads = [];
 let serviceTab = 'Alle';
 let campaignTab = 'Pakete';
 let auftragTab = 'uebersicht';
@@ -1339,19 +1190,6 @@ async function checkoutCart(){
   }
 }
 
-async function loadWallet(){
-  try{
-    const res = await window.storage.get('vertriebsportal:wallet', false);
-    if(res && res.value){ wallet = JSON.parse(res.value); return; }
-  }catch(e){ /* key not found or storage unavailable */ }
-  wallet = JSON.parse(JSON.stringify(DEFAULT_WALLET));
-  saveWallet();
-}
-async function saveWallet(){
-  try{ await window.storage.set('vertriebsportal:wallet', JSON.stringify(wallet), false); }
-  catch(e){ console.warn('Speichern fehlgeschlagen', e); }
-}
-
 async function loadAppointments(){
   try{
     const res = await window.storage.get('vertriebsportal:appointments', false);
@@ -1362,19 +1200,6 @@ async function loadAppointments(){
 }
 async function saveAppointments(){
   try{ await window.storage.set('vertriebsportal:appointments', JSON.stringify(appointments), false); }
-  catch(e){ console.warn('Speichern fehlgeschlagen', e); }
-}
-
-async function loadPipeline(){
-  try{
-    const res = await window.storage.get('vertriebsportal:pipeline', false);
-    if(res && res.value){ pipelineLeads = JSON.parse(res.value); return; }
-  }catch(e){}
-  pipelineLeads = JSON.parse(JSON.stringify(DEFAULT_PIPELINE));
-  savePipeline();
-}
-async function savePipeline(){
-  try{ await window.storage.set('vertriebsportal:pipeline', JSON.stringify(pipelineLeads), false); }
   catch(e){ console.warn('Speichern fehlgeschlagen', e); }
 }
 
@@ -1433,13 +1258,6 @@ async function logAdminTransaction(desc, amount){
     desc, amount
   });
   saveAdminTransactions();
-}
-
-function addWalletTx(desc, amount){
-  wallet.balance = Math.round((wallet.balance + amount) * 100) / 100;
-  wallet.history.unshift({date:todayStr(), desc, amount, balanceAfter: wallet.balance});
-  saveWallet();
-  logAdminTransaction(desc, amount);
 }
 
 function todayStr(){
@@ -1525,7 +1343,7 @@ async function api(path, opts){
 
 async function enterApp(){
   loadCart();
-  await Promise.all([loadOrders(), loadWallet(), loadAppointments(), loadPipeline()]);
+  await Promise.all([loadOrders(), loadAppointments()]);
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').classList.add('show');
   updateSidebarUser();
@@ -1581,7 +1399,7 @@ document.getElementById('register-form').addEventListener('submit', async functi
   try{
     const { user } = await api('/auth/register', {method:'POST', body:{name, company, email, password:pass}});
     userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde };
-    orders = []; wallet = JSON.parse(JSON.stringify(DEFAULT_WALLET)); appointments = DEFAULT_APPOINTMENTS.slice(); pipelineLeads = JSON.parse(JSON.stringify(DEFAULT_PIPELINE));
+    orders = []; appointments = DEFAULT_APPOINTMENTS.slice();
     await enterApp();
     showToast(`Willkommen, ${name}! Dein Konto wurde erstellt.`);
   }catch(ex){
@@ -1605,7 +1423,6 @@ document.getElementById('logout-btn').addEventListener('click', async ()=>{
 document.getElementById('hamburger').addEventListener('click', ()=>{
   document.getElementById('sidebar').classList.toggle('open');
 });
-document.getElementById('topbar-balance-btn').addEventListener('click', ()=> navigate('budget'));
 
 /* =====================================================================
    NAVIGATION
@@ -1614,13 +1431,11 @@ const PAGE_META = {
   "dashboard": {title:"Dashboard", sub:"Willkommen bei vertriebsportal.ch"},
   "neuer-auftrag": {title:"Auftrag erstellen", sub:"Dein Überblick – und dein individueller Auftrag in wenigen Schritten"},
   "meine-auftraege": {title:"Meine Aufträge", sub:"Alle deine laufenden und abgeschlossenen Aufträge"},
-  "pipeline": {title:"Pipeline", sub:"Deine Leads von der Anfrage bis zur Registrierung"},
   "leads-kaufen": {title:"Leads kaufen", sub:"Qualifizierte Leads direkt nach Branche bestellen"},
   "kampagnen-kaufen": {title:"Kampagnen kaufen", sub:"Fertige Kampagnen-Pakete und Landingpages direkt buchen"},
   "vorlagen": {title:"Vorlagen", sub:"Fertige Beispiele je Branche – startklar als Basis für deinen Auftrag"},
   "marketingservices": {title:"Marketingservices", sub:"Zusätzliche Marketingleistungen dazubuchen"},
   "warenkorb": {title:"Warenkorb", sub:"Bestellung prüfen und verbindlich abschicken"},
-  "budget": {title:"Budget", sub:"Guthaben aufladen und selbst einsetzen"},
   "termine": {title:"Termine", sub:"Termin anfragen oder selbst eintragen"},
   "rechnungen": {title:"Rechnungen", sub:"Deine Rechnungen und Zahlungen im Überblick"},
   "profil": {title:"Profil", sub:"Deine Kontoinformationen"},
@@ -1658,38 +1473,23 @@ function navigate(page, opts){
    RENDER ROUTER
 ===================================================================== */
 function render(){
-  updateTopbarBalance();
-  updateNavBadges();
   updateCartBadge();
   const c = document.getElementById('page-content');
   if(currentPage === 'dashboard') c.innerHTML = renderDashboard();
   else if(currentPage === 'neuer-auftrag') c.innerHTML = renderNeuerAuftragPage();
   else if(currentPage === 'meine-auftraege') c.innerHTML = renderOrdersTable('Alle');
-  else if(currentPage === 'pipeline') c.innerHTML = renderPipeline();
   else if(currentPage === 'leads-kaufen') c.innerHTML = renderLeadsKaufen();
   else if(currentPage === 'kampagnen-kaufen') c.innerHTML = renderKampagnenKaufen();
   else if(currentPage === 'vorlagen') c.innerHTML = renderVorlagen();
   else if(currentPage === 'marketingservices') c.innerHTML = renderServices();
   else if(currentPage === 'warenkorb') c.innerHTML = renderWarenkorb();
-  else if(currentPage === 'budget') c.innerHTML = renderBudget();
   else if(currentPage === 'termine') c.innerHTML = renderTermine();
   else if(currentPage === 'rechnungen') c.innerHTML = renderRechnungen();
   else if(currentPage === 'profil') c.innerHTML = renderProfil();
   else if(currentPage === 'support') c.innerHTML = renderSupport();
   else if(currentPage === 'admin') c.innerHTML = renderAdmin();
   attachPageHandlers();
-  if(currentPage==='neuer-auftrag' || currentPage==='pipeline' || currentPage==='admin') animateStatCards();
-}
-function updateTopbarBalance(){
-  const el = document.getElementById('topbar-balance');
-  if(el) el.textContent = 'CHF ' + fmtMoney(wallet.balance);
-}
-function updateNavBadges(){
-  const el = document.getElementById('nav-badge-pipeline');
-  if(!el) return;
-  const n = pipelineLeads.filter(l=>l.stage==='neu').length;
-  el.textContent = n;
-  el.classList.toggle('show', n>0);
+  if(currentPage==='neuer-auftrag' || currentPage==='admin') animateStatCards();
 }
 function profileInitials(){
   return (userProfile.name||'').split(' ').map(w=>w[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || 'NN';
@@ -1830,13 +1630,6 @@ function renderDashboard(){
   </div>`;
 }
 
-function goalMotivationCopy(pct){
-  if(pct>=100) return 'Monatsziel erreicht – starke Leistung! 🎉';
-  if(pct>=70) return 'Fast geschafft, weiter so! 🔥';
-  if(pct>=30) return 'Guter Rhythmus – bleib dran 🚀';
-  return "Los geht's, jede Registrierung zählt 💪";
-}
-
 function focusPanel(){
   if(!(userProfile.branche && userProfile.typkunde)) return '';
   return `<div class="panel focus-chip-panel">
@@ -1890,28 +1683,10 @@ function renderAuftragHub(){
   const anfragenGesamt = 147 + Math.max(0, orders.length-5)*8;
   const recent = orders.slice(0,4);
 
-  const registriertCount = pipelineLeads.filter(l=>l.stage==='registriert').length;
-  const goalPct = Math.min(100, Math.round(registriertCount/MONTHLY_GOAL*100));
-  const totalPipeline = pipelineLeads.length || 1;
-
   return `
   ${focusPanel()}
 
-  <div class="goal-panel" style="margin-top:${userProfile.branche?'14px':'0'};">
-    <div class="goal-top">
-      <div>
-        <div class="goal-label"><span class="live-dot"></span>Dein Fortschritt</div>
-        <div class="goal-copy">${goalMotivationCopy(goalPct)}</div>
-      </div>
-      <div>
-        <div class="goal-count">${registriertCount} / ${MONTHLY_GOAL}</div>
-        <div class="goal-count-sub">Registrierungen diesen Monat</div>
-      </div>
-    </div>
-    <div class="goal-bar-track"><div class="goal-bar-fill" style="width:${goalPct}%"></div></div>
-  </div>
-
-  <div class="stat-grid" style="margin-top:14px;">
+  <div class="stat-grid" style="margin-top:${userProfile.branche?'14px':'0'};">
     ${statCard('users','var(--accent-tint)','var(--accent-dark)','Aktive Aufträge',aktive,'In Bearbeitung', true)}
     ${statCard('clock','var(--amber-bg)','var(--amber-fg)','In Umsetzung',umsetzung,'Kampagnen laufen', true)}
     ${statCard('checkcircle','var(--green-bg)','var(--green-fg)','Abgeschlossen',abgeschlossen,'Erfolgreich umgesetzt', true)}
@@ -1946,25 +1721,6 @@ function renderAuftragHub(){
           <div class="quick-ic">${icSvg('help',16)}</div>
           <div><div class="name">Support kontaktieren</div><div class="sub">Unser Team ist für dich da</div></div>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="panel" style="margin-top:14px;">
-    <div class="panel-head">
-      <h3>Deine Vertriebspipeline</h3>
-      <a class="link-btn" data-nav="pipeline" style="font-size:12.5px;">Pipeline öffnen →</a>
-    </div>
-    <div style="padding:16px 18px 18px;">
-      <div class="funnel-mini">
-        ${STAGE_DEFS.map(s=>{
-          const cnt = pipelineLeads.filter(l=>l.stage===s.key).length;
-          const pct = Math.max(6, Math.round(cnt/totalPipeline*100));
-          return `<div class="funnel-seg" style="flex:${pct};background:${s.bar}" title="${s.label}: ${cnt}">${cnt}</div>`;
-        }).join('')}
-      </div>
-      <div class="funnel-legend">
-        ${STAGE_DEFS.map(s=>`<span><span class="dot" style="background:${s.bar}"></span>${s.label}</span>`).join('')}
       </div>
     </div>
   </div>`;
@@ -2006,118 +1762,6 @@ function orderRow(o){
 }
 function emptyRow(){
   return `<div style="padding:24px;text-align:center;color:var(--gray-400);font-size:13px;">Noch keine Aufträge vorhanden.</div>`;
-}
-
-/* =====================================================================
-   PIPELINE — Kanban mit Drag & Drop
-===================================================================== */
-function renderPipeline(){
-  const totalLeads = pipelineLeads.length;
-  const registriertCount = pipelineLeads.filter(l=>l.stage==='registriert').length;
-  const openLeads = pipelineLeads.filter(l=>l.stage!=='registriert');
-  const openValue = openLeads.reduce((s,l)=>s+l.value,0);
-  const conv = totalLeads ? Math.round(registriertCount/totalLeads*100) : 0;
-  const goalPct = Math.min(100, Math.round(registriertCount/MONTHLY_GOAL*100));
-
-  return `
-  <div class="goal-panel">
-    <div class="goal-top">
-      <div>
-        <div class="goal-label"><span class="live-dot"></span>Monatsziel Registrierungen</div>
-        <div class="goal-copy">${goalMotivationCopy(goalPct)}</div>
-      </div>
-      <div>
-        <div class="goal-count">${registriertCount} / ${MONTHLY_GOAL}</div>
-        <div class="goal-count-sub">${goalPct}% erreicht</div>
-      </div>
-    </div>
-    <div class="goal-bar-track"><div class="goal-bar-fill" style="width:${goalPct}%"></div></div>
-  </div>
-
-  <div class="stat-grid" style="margin-top:14px;">
-    ${statCard('inbox','var(--blue-bg)','var(--blue-fg)','Leads in Pipeline',totalLeads,'Alle Phasen', true)}
-    ${statCard('wallet','var(--teal-bg)','var(--teal-fg)','Offener Wert (CHF)',fmtMoney(openValue),'Noch nicht registriert')}
-    ${statCard('checkcircle','var(--green-bg)','var(--green-fg)','Registriert',registriertCount,'Diesen Monat', true)}
-    ${statCard('trendup','var(--violet-bg)','var(--violet-fg)','Conversion',conv+'%','Lead → Registrierung')}
-  </div>
-
-  <div class="pipe-hint">${icSvg('trendup',13)} Karte ziehen, um die Phase zu wechseln — oder den Pfeil auf der Karte antippen.</div>
-
-  <div class="pipe-cols">
-    ${STAGE_DEFS.map(s=>pipeColumn(s)).join('')}
-  </div>`;
-}
-
-function pipeColumn(stage){
-  const leads = pipelineLeads.filter(l=>l.stage===stage.key);
-  const total = leads.reduce((s,l)=>s+l.value,0);
-  return `<div class="pipe-col">
-    <div class="pipe-col-head">
-      <div class="pipe-col-title"><span class="pipe-col-dot" style="background:${stage.bar}"></span>${stage.label}</div>
-      <div class="pipe-col-meta">${leads.length} Lead${leads.length===1?'':'s'} · CHF ${fmtMoney(total)}</div>
-    </div>
-    <div class="pipe-dropzone" data-stage="${stage.key}">
-      ${leads.map((l,i)=>pipeCard(l,i)).join('') || `<div class="pipe-empty">Keine Leads in dieser Phase</div>`}
-    </div>
-  </div>`;
-}
-
-function pipeCard(lead, idx){
-  const stageIdx = STAGE_DEFS.findIndex(s=>s.key===lead.stage);
-  const isLast = stageIdx === STAGE_DEFS.length-1;
-  const initials = lead.name.split(' ').map(w=>w[0]).filter(Boolean).slice(0,2).join('').toUpperCase();
-  return `<div class="pipe-card" draggable="true" data-lead-id="${lead.id}" style="--d:${idx%6}">
-    <div class="pipe-card-top">
-      <div class="pipe-avatar">${initials}</div>
-      <div class="pipe-value">CHF ${fmtMoney(lead.value)}</div>
-    </div>
-    <div class="pipe-name">${escapeHtml(lead.name)}</div>
-    <div class="pipe-sub">${escapeHtml(lead.branche)} · ${escapeHtml(lead.typkunde)}</div>
-    <div class="pipe-card-foot">
-      <span class="pipe-source">${escapeHtml(lead.source)}</span>
-      ${isLast
-        ? `<span class="pipe-done">${icSvg('check',12)}</span>`
-        : `<button class="pipe-advance" data-advance="${lead.id}" title="Nächste Phase">${icSvg('trendup',12)}</button>`}
-    </div>
-  </div>`;
-}
-
-function advanceLead(id){
-  const lead = pipelineLeads.find(l=>l.id===id);
-  if(!lead) return;
-  const idx = STAGE_DEFS.findIndex(s=>s.key===lead.stage);
-  if(idx<0 || idx>=STAGE_DEFS.length-1) return;
-  moveLeadToStage(lead, STAGE_DEFS[idx+1].key);
-}
-
-function moveLeadToStage(lead, newStageKey){
-  if(lead.stage === newStageKey) return;
-  const wasRegistered = lead.stage === 'registriert';
-  lead.stage = newStageKey;
-  savePipeline();
-  render();
-  if(newStageKey === 'registriert' && !wasRegistered){
-    celebrateRegistration(lead.name);
-  }
-}
-
-function celebrateRegistration(name){
-  fireConfetti();
-  showToast(`🎉 ${name} wurde erfolgreich registriert!`);
-}
-
-function fireConfetti(){
-  const colors = ['#4b94e3','#074f9b','#6699ea','#8fbdf0','#1f7a4d','#d99a2b'];
-  for(let i=0;i<22;i++){
-    const el = document.createElement('div');
-    el.className = 'confetti-piece';
-    el.style.left = (Math.random()*100)+'vw';
-    el.style.background = colors[Math.floor(Math.random()*colors.length)];
-    el.style.animationDuration = (1.6 + Math.random()*1.1)+'s';
-    el.style.transform = `rotate(${Math.round(Math.random()*360)}deg)`;
-    document.body.appendChild(el);
-    setTimeout(()=> el.remove(), 3000);
-  }
 }
 
 /* =====================================================================
@@ -2327,28 +1971,6 @@ function useTemplate(typkunde, branche){
   wizardData = { typkunde, branche, ziel:"", anzahl:"", zeitraum:"", zusatz:[], firma:"", website:"", region:"", budget:"", briefing:"" };
   navigate('neuer-auftrag', {preserveWizard:true});
   showToast('Vorlage übernommen – bitte Angaben prüfen');
-}
-
-function topUpBudget(){
-  const amt = parseFloat(valOf('topup-amount'));
-  if(!amt || amt <= 0){ showToast('Bitte einen gültigen Betrag eingeben.'); return; }
-  addWalletTx('Guthaben aufgeladen', amt);
-  showToast(`CHF ${fmtMoney(amt)} erfolgreich aufgeladen`);
-  render();
-}
-
-function useBudgetSelf(){
-  const orderId = valOf('budget-order');
-  const amt = parseFloat(valOf('budget-amount'));
-  const zweck = valOf('budget-zweck');
-  if(!orderId){ showToast('Bitte einen Auftrag auswählen.'); return; }
-  if(!amt || amt <= 0){ showToast('Bitte einen gültigen Betrag eingeben.'); return; }
-  if(amt > wallet.balance){ showToast('Nicht genügend Guthaben.'); return; }
-  const order = orders.find(o=>String(o.id)===orderId);
-  const label = order ? order.name : 'Auftrag';
-  addWalletTx(`Budget eingesetzt: ${label}${zweck ? ' – '+zweck : ''}`, -amt);
-  showToast('Budget erfolgreich eingesetzt');
-  render();
 }
 
 function requestAppointment(){
@@ -2618,63 +2240,6 @@ function renderWarenkorb(){
   `;
 }
 
-/* ---------- Budget ---------- */
-function renderBudget(){
-  const activeOrders = orders.filter(o=>o.status!=='Abgeschlossen');
-  return `
-    <div class="wallet-hero">
-      <div>
-        <div class="wh-label">Aktuelles Guthaben</div>
-        <div class="wh-value">CHF ${fmtMoney(wallet.balance)}</div>
-      </div>
-      ${icSvg('wallet',34)}
-    </div>
-
-    <div class="grid-2" style="margin-top:16px;">
-      <div class="panel">
-        <div class="panel-head"><h3>Guthaben aufladen</h3></div>
-        <div class="panel-body" style="padding:15px 18px 18px;">
-          <div class="form-grid">
-            <div class="field"><label>Betrag (CHF)</label><input type="number" id="topup-amount" placeholder="z. B. 1000" min="1"></div>
-            ${selectField('topup-method','Zahlungsmethode', ["Kreditkarte","Rechnung","TWINT","Banküberweisung"], '')}
-          </div>
-          <button class="btn btn-blue" id="topup-btn" style="width:100%;justify-content:center;">${icSvg('plus',14)} Guthaben aufladen</button>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><h3>Budget selbst einsetzen</h3></div>
-        <div class="panel-body" style="padding:15px 18px 18px;">
-          <div class="field"><label>Auftrag</label>
-            <select id="budget-order">
-              <option value="">Bitte wählen</option>
-              ${activeOrders.map(o=>`<option value="${o.id}">${escapeHtml(o.name)}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-grid">
-            <div class="field"><label>Betrag (CHF)</label><input type="number" id="budget-amount" placeholder="z. B. 200" min="1"></div>
-            ${selectField('budget-zweck','Verwendungszweck', ["Werbebudget erhöhen","Zusätzliche Leads","Laufzeit verlängern"], '')}
-          </div>
-          <button class="btn btn-blue" id="use-budget-btn" style="width:100%;justify-content:center;">${icSvg('sliders',14)} Budget einsetzen</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-label" style="margin-top:24px;">Transaktionsverlauf</div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Datum</th><th>Beschreibung</th><th>Betrag</th><th>Saldo</th></tr></thead>
-        <tbody>${wallet.history.length ? wallet.history.map(h=>`<tr>
-          <td class="mono-cell">${h.date}</td>
-          <td>${escapeHtml(h.desc)}</td>
-          <td class="mono-cell" style="color:${h.amount<0?'var(--red-fg)':'var(--green-fg)'};">${h.amount<0?'−':'+'}CHF ${fmtMoney(Math.abs(h.amount))}</td>
-          <td class="mono-cell">CHF ${fmtMoney(h.balanceAfter)}</td>
-        </tr>`).join('') : `<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:24px;">Noch keine Transaktionen.</td></tr>`}</tbody>
-      </table>
-    </div>
-  `;
-}
-
 /* ---------- Termine ---------- */
 function apptTag(type,status){
   const map = {team:'tag-blue', eigen:'tag-green', angefragt:'tag-amber'};
@@ -2874,32 +2439,6 @@ function attachPageHandlers(){
     el.addEventListener('click', ()=> navigate(el.dataset.nav));
   });
 
-  document.querySelectorAll('.pipe-card[draggable="true"]').forEach(card=>{
-    card.addEventListener('dragstart', e=>{
-      card.classList.add('dragging');
-      e.dataTransfer.setData('text/plain', card.dataset.leadId);
-      e.dataTransfer.effectAllowed = 'move';
-    });
-    card.addEventListener('dragend', ()=> card.classList.remove('dragging'));
-  });
-  document.querySelectorAll('.pipe-dropzone').forEach(zone=>{
-    zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.classList.add('drag-over'); });
-    zone.addEventListener('dragleave', ()=> zone.classList.remove('drag-over'));
-    zone.addEventListener('drop', e=>{
-      e.preventDefault();
-      zone.classList.remove('drag-over');
-      const id = e.dataTransfer.getData('text/plain');
-      const lead = pipelineLeads.find(l=> String(l.id)===String(id));
-      if(lead) moveLeadToStage(lead, zone.dataset.stage);
-    });
-  });
-  document.querySelectorAll('[data-advance]').forEach(btn=>{
-    btn.addEventListener('click', e=>{
-      e.stopPropagation();
-      advanceLead(parseInt(btn.dataset.advance,10));
-    });
-  });
-
   document.querySelectorAll('.pick-card[data-group]').forEach(el=>{
     el.addEventListener('click', ()=>{
       const group = el.dataset.group;
@@ -2988,10 +2527,6 @@ function attachPageHandlers(){
   const clearCartBtn = document.getElementById('clear-cart-btn');
   if(clearCartBtn) clearCartBtn.addEventListener('click', ()=>{ clearCart(); render(); });
 
-  const topupBtn = document.getElementById('topup-btn');
-  if(topupBtn) topupBtn.addEventListener('click', topUpBudget);
-  const useBudgetBtn = document.getElementById('use-budget-btn');
-  if(useBudgetBtn) useBudgetBtn.addEventListener('click', useBudgetSelf);
   const requestApptBtn = document.getElementById('request-appt-btn');
   if(requestApptBtn) requestApptBtn.addEventListener('click', requestAppointment);
   const addOwnApptBtn = document.getElementById('add-own-appt-btn');
