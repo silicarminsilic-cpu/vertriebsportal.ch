@@ -1080,12 +1080,6 @@ const SERVICES = [
   {id:'sv8', cat:'Video', name:'Video-Produktion', price:980, unit:'Pauschal', desc:'Kurzes Werbevideo für Social Media und Ads-Kampagnen.'},
 ];
 
-const DEFAULT_APPOINTMENTS = [
-  {id:1, title:'Kickoff Krankenkasse Kampagne', date:'21.08.2026', time:'14:30', type:'team', status:'Bestätigt'},
-  {id:2, title:'Strategiegespräch – Hypotheken-Leads', date:'18.08.2026', time:'10:00', type:'team', status:'Bestätigt'},
-  {id:3, title:'Interner Check-in Immobilien', date:'25.08.2026', time:'09:00', type:'eigen', status:'Eingetragen'},
-];
-
 let appointments = [];
 let serviceTab = 'Alle';
 let campaignTab = 'Pakete';
@@ -1195,8 +1189,7 @@ async function loadAppointments(){
     const res = await window.storage.get('vertriebsportal:appointments', false);
     if(res && res.value){ appointments = JSON.parse(res.value); return; }
   }catch(e){}
-  appointments = DEFAULT_APPOINTMENTS.slice();
-  saveAppointments();
+  appointments = [];
 }
 async function saveAppointments(){
   try{ await window.storage.set('vertriebsportal:appointments', JSON.stringify(appointments), false); }
@@ -1372,7 +1365,7 @@ document.getElementById('register-form').addEventListener('submit', async functi
   try{
     const { user } = await api('/auth/register', {method:'POST', body:{name, company, email, password:pass}});
     userProfile = { name:user.name, email:user.email, company:user.company, branche:user.branche, typkunde:user.typkunde, isAdmin:!!user.isAdmin };
-    orders = []; appointments = DEFAULT_APPOINTMENTS.slice();
+    orders = []; appointments = [];
     await enterApp();
     showToast(`Willkommen, ${name}! Dein Konto wurde erstellt.`);
   }catch(ex){
@@ -2263,7 +2256,7 @@ function renderTermine(){
             <div class="sub">${a.date}${a.time && a.time!=='–' ? ' · '+a.time+' Uhr' : ''}</div>
           </div>
           <div class="meta">${apptTag(a.type,a.status)}</div>
-        </div>`).join('') || emptyRow()}
+        </div>`).join('') || `<div style="padding:24px;text-align:center;color:var(--gray-400);font-size:13px;">Noch keine Termine vorhanden.</div>`}
       </div>
     </div>
   `;
