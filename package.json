@@ -1,0 +1,29 @@
+{
+  "name": "vertriebsportal-ch",
+  "version": "1.0.0",
+  "private": true,
+  "description": "vertriebsportal.ch – Kundenportal mit echter Registrierung, Login und automatischem Offerten- und Rechnungsversand per E-Mail.",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.6.2",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^9.0.5",
+    "pdfkit": "^0.20.1",
+    "pg": "^8.23.0",
+    "serverless-http": "^4.0.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}
