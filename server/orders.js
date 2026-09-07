@@ -9,6 +9,7 @@ const router = express.Router();
 router.use(requireAuth);
 
 const MAX_ITEMS_PER_ORDER = 30;
+const FIRST_ORDER_DISCOUNT_PERCENT = 20;
 
 function resolveItem(raw) {
   const category = String(raw.category || '');
@@ -117,6 +118,9 @@ function publicOrder(order) {
       total: Number(it.total),
     })),
     subtotal: Number(order.subtotal),
+    listSubtotal: Math.round((Number(order.subtotal) + Number(order.discount_amount)) * 100) / 100,
+    discountPercent: order.discount_percent,
+    discountAmount: Number(order.discount_amount),
     currency: order.currency,
     offerNumber: order.offer_number,
     invoiceNumber: order.invoice_number,
@@ -158,7 +162,13 @@ router.post('/', async (req, res, next) => {
     const billing = resolveBilling(req.body.billing);
     if (billing.error) return res.status(400).json({ error: billing.error });
 
-    const subtotal = Math.round(items.reduce((s, it) => s + it.total, 0) * 100) / 100;
+    const listSubtotal = Math.round(items.reduce((s, it) => s + it.total, 0) * 100) / 100;
+
+    const { rows: countRows } = await db.query('SELECT COUNT(*)::int AS n FROM orders WHERE user_id = $1', [req.user.id]);
+    const isFirstOrder = countRows[0].n === 0;
+    const discountPercent = isFirstOrder ? FIRST_ORDER_DISCOUNT_PERCENT : 0;
+    const discountAmount = Math.round(listSubtotal * (discountPercent / 100) * 100) / 100;
+    const subtotal = Math.round((listSubtotal - discountAmount) * 100) / 100;
 
     // Rechnungsadresse fürs nächste Mal im Profil vormerken.
     await db.query(
@@ -167,9 +177,9 @@ router.post('/', async (req, res, next) => {
     );
 
     const orderInsert = await db.query(
-      `INSERT INTO orders (user_id, status, subtotal, currency, billing_street, billing_zip, billing_city, billing_country, billing_phone)
-       VALUES ($1, 'Bestellung eingegangen', $2, 'CHF', $3, $4, $5, $6, $7) RETURNING *`,
-      [req.user.id, subtotal, billing.street, billing.zip, billing.city, billing.country, billing.phone]
+      `INSERT INTO orders (user_id, status, subtotal, discount_percent, discount_amount, currency, billing_street, billing_zip, billing_city, billing_country, billing_phone)
+       VALUES ($1, 'Bestellung eingegangen', $2, $3, $4, 'CHF', $5, $6, $7, $8, $9) RETURNING *`,
+      [req.user.id, subtotal, discountPercent, discountAmount, billing.street, billing.zip, billing.city, billing.country, billing.phone]
     );
     const orderRow = orderInsert.rows[0];
 
@@ -198,18 +208,26 @@ router.post('/', async (req, res, next) => {
 
       const itemLines = order.items.map((it) => `- ${it.title} (${it.quantity}x): CHF ${Number(it.total).toFixed(2)}`).join('\n');
       const itemLinesHtml = order.items.map((it) => `<li>${escapeHtml(it.title)} (${it.quantity}x): CHF ${Number(it.total).toFixed(2)}</li>`).join('');
+      const discountLine = discountAmount > 0
+        ? `Inkl. ${discountPercent}% Neukundenrabatt (−CHF ${discountAmount.toFixed(2)}) auf deine erste Bestellung.\n`
+        : '';
+      const discountLineHtml = discountAmount > 0
+        ? `<p>🎉 Inkl. ${discountPercent}% Neukundenrabatt (−CHF ${discountAmount.toFixed(2)}) auf deine erste Bestellung.</p>`
+        : '';
 
       await sendMail({
         to: req.user.email,
         subject: `Deine Offerte & Rechnung – ${offerNumber} / ${invoiceNumber}`,
         text:
           `Hallo ${req.user.name}\n\nVielen Dank für deine Bestellung über vertriebsportal.ch:\n${itemLines}\n\n` +
+          discountLine +
           `Im Anhang findest du die Offerte (${offerNumber}) sowie die Rechnung (${invoiceNumber}) über CHF ${Number(order.subtotal).toFixed(2)} zzgl. MWST.\n` +
           `Bestellte Leads werden separat für dich zusammengestellt und in deinem Portal unter "Meine Aufträge" bereitgestellt.\n\n` +
           `Freundliche Grüsse\nvertriebsportal.ch`,
         html:
           `<p>Hallo ${escapeHtml(req.user.name)}</p>` +
           `<p>Vielen Dank für deine Bestellung über vertriebsportal.ch:</p><ul>${itemLinesHtml}</ul>` +
+          discountLineHtml +
           `<p>Im Anhang findest du die Offerte (${offerNumber}) sowie die Rechnung (${invoiceNumber}) über CHF ${Number(order.subtotal).toFixed(2)} zzgl. MWST.</p>` +
           `<p>Bestellte Leads werden separat für dich zusammengestellt und in deinem Portal unter "Meine Aufträge" bereitgestellt.</p>` +
           `<p>Freundliche Grüsse<br>vertriebsportal.ch</p>`,
@@ -228,11 +246,14 @@ router.post('/', async (req, res, next) => {
             text:
               `Neue Bestellung über vertriebsportal.ch:\n\n` +
               `Kunde: ${req.user.name} (${req.user.company})\nE-Mail: ${req.user.email}\n\n` +
-              `Positionen:\n${itemLines}\n\nTotal: CHF ${Number(order.subtotal).toFixed(2)} zzgl. MWST`,
+              `Positionen:\n${itemLines}\n\n` +
+              (discountAmount > 0 ? `Neukundenrabatt (${discountPercent}%): −CHF ${discountAmount.toFixed(2)}\n` : '') +
+              `Total: CHF ${Number(order.subtotal).toFixed(2)} zzgl. MWST`,
             html:
               `<p>Neue Bestellung über vertriebsportal.ch:</p>` +
               `<p>Kunde: ${escapeHtml(req.user.name)} (${escapeHtml(req.user.company)})<br>E-Mail: ${escapeHtml(req.user.email)}</p>` +
               `<p>Positionen:</p><ul>${itemLinesHtml}</ul>` +
+              (discountAmount > 0 ? `<p>Neukundenrabatt (${discountPercent}%): −CHF ${discountAmount.toFixed(2)}</p>` : '') +
               `<p>Total: CHF ${Number(order.subtotal).toFixed(2)} zzgl. MWST</p>`,
           });
         } catch (err) {

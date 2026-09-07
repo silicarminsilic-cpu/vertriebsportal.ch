@@ -60,6 +60,8 @@ function ensureSchema() {
         invoice_number TEXT NOT NULL DEFAULT '',
         status TEXT NOT NULL DEFAULT 'Bestellung eingegangen',
         subtotal NUMERIC(10,2) NOT NULL DEFAULT 0,
+        discount_percent INTEGER NOT NULL DEFAULT 0,
+        discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
         currency TEXT NOT NULL DEFAULT 'CHF',
         email_sent BOOLEAN NOT NULL DEFAULT false,
         billing_street TEXT NOT NULL DEFAULT '',
@@ -74,6 +76,8 @@ function ensureSchema() {
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS billing_city TEXT NOT NULL DEFAULT '';
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS billing_country TEXT NOT NULL DEFAULT '';
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS billing_phone TEXT NOT NULL DEFAULT '';
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_percent INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0;
 
       CREATE TABLE IF NOT EXISTS order_items (
         id SERIAL PRIMARY KEY,

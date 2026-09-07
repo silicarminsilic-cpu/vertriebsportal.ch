@@ -91,15 +91,29 @@ function drawItemsTable(doc, startY, order) {
     y += 8;
   }
 
-  y = ensureSpace(doc, y, 90);
+  const discountAmountForSpace = Number(order.discount_amount || 0);
+  y = ensureSpace(doc, y, discountAmountForSpace > 0 ? 125 : 90);
   doc.moveTo(50, y).lineTo(545, y).strokeColor('#e1e7ed').stroke();
   y += 12;
 
   const subtotal = Number(order.subtotal);
+  const discountAmount = Number(order.discount_amount || 0);
+  const discountPercent = Number(order.discount_percent || 0);
+  const listSubtotal = Math.round((subtotal + discountAmount) * 100) / 100;
   const mwst = Math.round(subtotal * (COMPANY.mwstRate / 100) * 100) / 100;
   const grandTotal = Math.round((subtotal + mwst) * 100) / 100;
 
   doc.fontSize(10).fillColor('#33404d').font('Helvetica');
+  if (discountAmount > 0) {
+    doc.text('Zwischensumme (Listenpreis)', 340, y, { width: 125, align: 'left' });
+    doc.text(`CHF ${fmtMoney(listSubtotal)}`, colPos.total, y, { width: 65, align: 'right' });
+    y += 16;
+    doc.fillColor('#1f7a4d');
+    doc.text(`Neukundenrabatt (−${discountPercent}%)`, 340, y, { width: 125, align: 'left' });
+    doc.text(`−CHF ${fmtMoney(discountAmount)}`, colPos.total, y, { width: 65, align: 'right' });
+    y += 16;
+    doc.fillColor('#33404d');
+  }
   doc.text('Zwischensumme', 340, y, { width: 125, align: 'left' });
   doc.text(`CHF ${fmtMoney(subtotal)}`, colPos.total, y, { width: 65, align: 'right' });
   y += 16;
