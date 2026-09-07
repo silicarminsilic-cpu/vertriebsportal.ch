@@ -1101,6 +1101,9 @@ function apiOrderToLocal(o){
     offerNumber: o.offerNumber,
     invoiceNumber: o.invoiceNumber,
     total: o.subtotal,
+    listTotal: o.listSubtotal,
+    discountPercent: o.discountPercent,
+    discountAmount: o.discountAmount,
     emailSent: o.emailSent
   };
 }
@@ -1177,11 +1180,12 @@ async function checkoutCart(){
   if(btn){ btn.disabled = true; btn.textContent = 'Wird bestellt…'; }
   try{
     const items = cart.map(c=>({category:c.category, productId:c.productId, quantity:c.quantity}));
-    await createOrder(items, billing);
+    const { order } = await createOrder(items, billing);
     userProfile = { ...userProfile, ...billing };
     clearCart();
     updateCartBadge();
-    showToast(`Bestellung eingegangen – Offerte & Rechnung wurden an ${userProfile.email} gesendet`);
+    const discountNote = order && order.discountAmount > 0 ? ` – ${order.discountPercent}% Neukundenrabatt (−CHF ${fmtMoney(order.discountAmount)}) wurde abgezogen` : '';
+    showToast(`Bestellung eingegangen${discountNote} – Offerte & Rechnung wurden an ${userProfile.email} gesendet`);
     navigate('meine-auftraege');
   }catch(ex){
     showToast(ex.message || 'Bestellung fehlgeschlagen.');
@@ -1949,9 +1953,10 @@ async function submitOrder(){
   const wizNext = document.getElementById('wiz-next');
   if(wizNext){ wizNext.disabled = true; wizNext.textContent = 'Wird gesendet…'; }
   try{
-    await createOrder([{ category:'individuell', ...wizardData }], wizardData.billing);
+    const { order } = await createOrder([{ category:'individuell', ...wizardData }], wizardData.billing);
     userProfile = { ...userProfile, ...wizardData.billing };
-    showToast(`Angebot & Rechnung wurden an ${userProfile.email} gesendet`);
+    const discountNote = order && order.discountAmount > 0 ? ` – ${order.discountPercent}% Neukundenrabatt (−CHF ${fmtMoney(order.discountAmount)}) wurde abgezogen` : '';
+    showToast(`Angebot & Rechnung wurden an ${userProfile.email} gesendet${discountNote}`);
     navigate('meine-auftraege');
   }catch(ex){
     showToast(ex.message || 'Auftrag konnte nicht gesendet werden.');
@@ -2099,12 +2104,21 @@ function vorlageCard(v){
 function renderVorlagen(){
   const sorted = VORLAGEN_TEMPLATES.slice().sort((a,b)=> (b.branche===userProfile.branche) - (a.branche===userProfile.branche));
   return `
+    ${firstOrderBanner()}
     <p style="color:var(--gray-500);font-size:12.5px;margin:0 0 16px;">„Vorlage nutzen" füllt den Auftrags-Wizard direkt mit passender Branche und Zielgruppe vor – Preis versteht sich als Richtwert für ein individuelles Angebot.</p>
     <div class="shop-grid">${sorted.map(vorlageCard).join('')}</div>
   `;
 }
 
 /* ---------- Leads kaufen ---------- */
+const FIRST_ORDER_DISCOUNT_PERCENT = 20;
+function isFirstOrderEligible(){ return orders.length === 0; }
+function firstOrderBanner(){
+  if(!isFirstOrderEligible()) return '';
+  return `<div class="wallet-mini" style="background:var(--green-bg);border-color:#bfe3cf;color:var(--green-fg);">
+    <div class="wm-left">${icSvg('checkcircle',16)}<span>🎉 <strong>${FIRST_ORDER_DISCOUNT_PERCENT}% Rabatt</strong> auf deine erste Bestellung – wird automatisch im Warenkorb abgezogen.</span></div>
+  </div>`;
+}
 function cartMiniBar(){
   const n = cartCount();
   if(!n) return `<div class="wallet-mini">
@@ -2138,6 +2152,7 @@ function leadProductCard(p){
 function renderLeadsKaufen(){
   return `
     ${cartMiniBar()}
+    ${firstOrderBanner()}
     <div class="section-label">Leads nach Branche kaufen</div>
     <div class="shop-grid">${LEAD_PRODUCTS.map(leadProductCard).join('')}</div>
   `;
@@ -2183,6 +2198,7 @@ function landingpageCard(p){
 function renderKampagnenKaufen(){
   return `
     ${cartMiniBar()}
+    ${firstOrderBanner()}
     <div class="tabs" style="margin-bottom:16px;">
       <button class="tab-btn campaign-tab ${campaignTab==='Pakete'?'active':''}" data-ctab="Pakete">Kampagnen-Pakete</button>
       <button class="tab-btn campaign-tab ${campaignTab==='Landingpages'?'active':''}" data-ctab="Landingpages">Landingpages</button>
@@ -2214,6 +2230,7 @@ function renderServices(){
   const filtered = serviceTab==='Alle' ? SERVICES : SERVICES.filter(s=>s.cat===serviceTab);
   return `
     ${cartMiniBar()}
+    ${firstOrderBanner()}
     <div class="tabs" style="margin-bottom:16px;flex-wrap:wrap;">
       ${SERVICE_CATS.map(c=>`<button class="tab-btn service-tab ${c===serviceTab?'active':''}" data-cat="${c}">${c}</button>`).join('')}
     </div>
@@ -2247,7 +2264,11 @@ function renderWarenkorb(){
     </div>`;
   }
   const total = cartTotal();
+  const eligible = isFirstOrderEligible();
+  const discountAmount = eligible ? Math.round(total * (FIRST_ORDER_DISCOUNT_PERCENT/100) * 100) / 100 : 0;
+  const netTotal = Math.round((total - discountAmount) * 100) / 100;
   return `
+    ${firstOrderBanner()}
     <div class="table-wrap">
       <table>
         <thead><tr><th>Leistung</th><th>Preis</th><th>Menge</th><th>Total</th><th></th></tr></thead>
@@ -2264,6 +2285,8 @@ function renderWarenkorb(){
 
       <div class="panel" style="padding:18px 20px;">
         <div class="review-line"><span>Zwischensumme</span><span>CHF ${fmtMoney(total)}</span></div>
+        ${eligible ? `<div class="review-line" style="color:var(--green-fg);"><span>Neukundenrabatt (−${FIRST_ORDER_DISCOUNT_PERCENT}%)</span><span>−CHF ${fmtMoney(discountAmount)}</span></div>
+        <div class="review-line" style="font-weight:700;"><span>Total</span><span>CHF ${fmtMoney(netTotal)}</span></div>` : ''}
         <div class="review-line"><span>zzgl. MWST</span><span>wird auf Offerte/Rechnung ausgewiesen</span></div>
         <button class="btn btn-blue" id="checkout-btn" style="width:100%;justify-content:center;margin-top:14px;">${icSvg('check',14)} Verbindlich bestellen</button>
         <button class="btn btn-outline" id="clear-cart-btn" style="width:100%;justify-content:center;margin-top:9px;">Warenkorb leeren</button>
