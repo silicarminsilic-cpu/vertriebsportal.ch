@@ -1,5 +1,7 @@
 # vertriebsportal.ch
 
+> **Aufbau:** `public/index.html` ist die öffentliche Website (Landingpage), das Kundenportal liegt unter `public/portal/index.html` und ist unter `/portal/` erreichbar. `/portal/#registrieren` öffnet direkt die Registrierung.
+
 Kundenportal mit echter Registrierung/Login, Warenkorb und automatischem Versand von
 Offerte & Rechnung per E-Mail, sobald ein Kunde Leistungen auswählt und die Bestellung
 verbindlich abschickt. Läuft produktiv als Netlify Function + Netlify DB (Postgres).
